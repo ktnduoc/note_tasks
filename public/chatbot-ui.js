@@ -138,9 +138,6 @@
   const quickSuggestions = [
     { label: '📝 Tạo task mới', action: 'tạo task' },
     { label: '📊 Thống kê hôm nay', action: 'thống kê task hôm nay' },
-    { label: '📁 Thêm danh mục', action: 'tạo danh mục mới' },
-    { label: '✏️ Sửa danh mục', action: 'sửa danh mục' },
-    { label: '🗑️ Xoá danh mục', action: 'xoá danh mục' },
   ];
 
   const svgIcons = {
@@ -761,6 +758,15 @@
           priority: params.priority || 'medium',
         });
         return { success: true, task, message: `[OK] Đã tạo task **"${task.name}"** thành công! [detail:${task._id}:🔍 Xem chi tiết]` };
+      }
+
+      if (actionType === 'create_task' || actionType === 'create_task_with_category' || actionType === 'create_many_tasks' || actionType === 'create_category' || actionType === 'update_category' || actionType === 'delete_category' || actionType === 'update_task_progress' || actionType === 'update_tasks_status' || actionType === 'delete_tasks' || actionType === 'restore_deleted_task') {
+        if (!botCurrentUser) {
+          return { success: false, message: 'Bạn cần **đăng nhập** để thực hiện thao tác này. Gõ `/login` để đăng nhập nhé!' };
+        }
+        if (botCurrentUser.role === 'viewer') {
+          return { success: false, message: 'Tài khoản của bạn chỉ có quyền **xem**. Hãy liên hệ admin để được cấp quyền ghi.' };
+        }
       }
 
       if (actionType === 'create_category') {
