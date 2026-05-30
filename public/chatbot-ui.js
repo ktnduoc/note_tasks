@@ -2394,7 +2394,7 @@
     }
 
     function scheduleNext() {
-      const delay = 2000 + Math.random() * 3000; // 2-5s
+      const delay = 15000 + Math.random() * 45000; // 15-60s
       setTimeout(() => {
         tumbleOnce();
         scheduleNext();
