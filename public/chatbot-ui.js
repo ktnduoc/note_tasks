@@ -200,7 +200,7 @@
       'Khi người dùng muốn cập nhật TIẾN ĐỘ 1 task: GỌI update_task_progress với taskId (nếu đã biết từ kết quả trước) hoặc taskName. Nếu không rõ task nào, hỏi lại tên hoặc mã task.',
       'Khi người dùng muốn xoá 1 task cụ thể: BẢO họ dùng lệnh "/del #mã-task".',
       'Khi người dùng muốn xoá task, xoá tất cả task hôm nay, xoá N task đầu, hoặc xoá task theo tên/danh mục: GỌI delete_tasks. Không nói rằng hệ thống chỉ xoá được danh mục.',
-      'Khi người dùng muốn phục hồi/khôi phục task vừa xoá: GỌI restore_deleted_tasks.',
+      'Khi người dùng muốn phục hồi/khôi phục task vừa xoá: GỌI restore_deleted_tasks. Khi muốn phục hồi task đã xoá từ trước (không phải phiên hiện tại): GỌI restore_deleted_task với tên hoặc ID task. Nếu không rõ tên, GỌI query_db với includeDeleted=true để xem danh sách task đã xoá trước.',
       'Khi hỏi thống kê/tổng số/bao nhiêu task/đã xong/chưa xong/theo ưu tiên/theo danh mục: GỌI get_task_stats. Tool này trả về CẢ thống kê VÀ danh sách chi tiết từng task.',
       'Nếu thiếu thông tin, hỏi lại. Nếu không tìm thấy danh mục, gợi ý danh sách có sẵn.',
       'API tạo task có các trường: name (tên, bắt buộc), reason (lý do, optional), description (mô tả chi tiết, optional), categoryName, date, priority.',
@@ -908,6 +908,36 @@
         };
       }
 
+      if (actionType === 'restore_deleted_task') {
+        // Lấy danh sách task đã xoá từ API
+        const res = await fetch('/api/tasks/deleted', { headers: { 'Content-Type': 'application/json' } });
+        const json = await res.json();
+        const deletedTasks = json.success ? (json.data || []) : [];
+        if (!deletedTasks.length) return { success: false, message: 'Không có task nào đã xoá để phục hồi.' };
+
+        let task = null;
+        if (params.taskId) {
+          task = deletedTasks.find(t => t._id === params.taskId);
+        }
+        if (!task && params.taskName) {
+          const search = params.taskName.toLowerCase().trim();
+          task = deletedTasks.find(t => t.name?.toLowerCase().includes(search) || search.includes(t.name?.toLowerCase()));
+        }
+        if (!task) {
+          const list = deletedTasks.map(t => `- **${t.name}** (#${(t._id||'').slice(-6)})`).join('\n');
+          return { success: false, message: `Không tìm thấy task "${params.taskName || params.taskId}" trong danh sách đã xoá:\n${list}` };
+        }
+
+        const restoreRes = await fetch(`/api/tasks/${task._id}/restore`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const restoreJson = await restoreRes.json();
+        if (!restoreJson.success) return { success: false, message: restoreJson.message };
+
+        return { success: true, message: `[OK] Đã phục hồi task **"${task.name}"**! [detail:${task._id}:🔍 Xem]` };
+      }
+
       if (actionType === 'get_task_stats') {
         let categoryId = params.categoryId;
         let categoryLabel = '';
@@ -1027,7 +1057,7 @@
         const res = await fetch(`/api/${collection}/query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filter, sort, limit }),
+          body: JSON.stringify({ filter, sort, limit, includeDeleted: params.includeDeleted || false }),
         });
         const json = await res.json();
         if (!json.success) return { success: false, message: json.message };
@@ -1538,8 +1568,23 @@
             filter: { type: 'object', description: 'Filter MongoDB, VD: {"completed":true,"priority":"high"}' },
             sort: { type: 'object', description: 'Sort, VD: {"date":-1}' },
             limit: { type: 'number', description: 'Số kết quả, mặc định 50' },
+            includeDeleted: { type: 'boolean', description: 'true để bao gồm task đã xoá mềm. Dùng khi tìm task đã xoá để phục hồi.' },
           },
           required: ['collection'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'restore_deleted_task',
+        description: 'Khôi phục MỘT task đã xoá (soft delete) từ database. Dùng khi người dùng nói "phục hồi task X", "khôi phục task đã xoá tên Y". Tự tìm task trong danh sách đã xoá rồi restore.',
+        parameters: {
+          type: 'object',
+          properties: {
+            taskName: { type: 'string', description: 'Tên task cần phục hồi (tìm gần đúng trong task đã xoá)' },
+            taskId: { type: 'string', description: 'ID task cần phục hồi (nếu đã biết)' },
+          },
         },
       },
     },
@@ -1649,6 +1694,9 @@
     if (t === '/add' || t === '/them') {
       if (typeof window.openAddTaskModal === 'function') {
         window.openAddTaskModal();
+        setBotMessageContent(targetBubble, 'Đã mở form thêm task bên trên! 📝');
+      } else {
+        setBotMessageContent(targetBubble, 'Không thể mở form thêm task. Bạn thử reload trang nhé.');
       }
       return true;
     }

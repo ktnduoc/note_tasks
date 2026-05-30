@@ -529,6 +529,11 @@ async function viewTaskDetail(id) {
 let editingTaskId = null;
 
 function openEditModal(id) {
+  if (!canWrite()) {
+    showToast('Bạn cần đăng nhập để sửa task', 'error');
+    showAuthModal('login');
+    return;
+  }
   const task = tasks.find(t => t._id === id);
   if (!task) return;
 
@@ -548,6 +553,11 @@ function closeEditModal() {
 }
 
 function openAddTaskModal() {
+  if (!canWrite()) {
+    showToast('Bạn cần đăng nhập để tạo task', 'error');
+    showAuthModal('login');
+    return;
+  }
   document.getElementById('addTaskDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('addTaskName').value = '';
   document.getElementById('addTaskReason').value = '';
@@ -643,6 +653,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadAuth();
   document.getElementById('authForm')?.addEventListener('submit', handleAuth);
   document.getElementById('btnLogout')?.addEventListener('click', handleLogout);
+  document.getElementById('authTogglePw')?.addEventListener('click', () => {
+    const input = document.getElementById('authPasswordInput');
+    const eyeOpen = document.querySelector('#authTogglePw .eye-open');
+    const eyeClosed = document.querySelector('#authTogglePw .eye-closed');
+    if (input.type === 'password') {
+      input.type = 'text';
+      eyeOpen.style.display = 'none';
+      eyeClosed.style.display = 'block';
+    } else {
+      input.type = 'password';
+      eyeOpen.style.display = 'block';
+      eyeClosed.style.display = 'none';
+    }
+  });
   document.getElementById('authModalCloseBtn')?.addEventListener('click', hideAuthModal);
 
   // Quick add form - removed, use /add in chat instead

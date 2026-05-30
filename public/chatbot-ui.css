@@ -196,7 +196,7 @@
 
 /* ===== Chat Window ===== */
 #bot-widget-wrapper #bot-chat-window {
-  position: fixed; right: 24px; bottom: 92px; width: 340px; height: 520px;
+  position: fixed; right: 24px; bottom: 92px; width: 360px; height: 520px;
   max-width: calc(100vw - 32px); display: none; flex-direction: column; overflow: hidden;
   border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; background: white;
   box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); z-index: 2147483646;
@@ -204,7 +204,7 @@
 #bot-widget-wrapper.is-positioned #bot-chat-window {
   right: auto;
   bottom: auto;
-  left: min(var(--bot-fab-left), calc(100vw - 356px));
+  left: min(var(--bot-fab-left), calc(100vw - 376px));
   top: max(16px, calc(var(--bot-fab-top) - 540px));
 }
 #bot-widget-wrapper.is-open #bot-chat-window {
