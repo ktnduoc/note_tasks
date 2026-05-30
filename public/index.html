@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NoteTasks - Quản lý công việc</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="auth-ui.css">
+  <link rel="stylesheet" href="task-modal.css">
+  <link rel="stylesheet" href="chatbot-ui.css">
+</head>
+<body>
+  <!-- Auth Bar -->
+  <div id="authBar" class="auth-bar" style="display: none;">
+    <div class="auth-bar-left">
+      <span class="auth-bar-user" id="authUsername">Guest</span>
+      <span class="auth-bar-role" id="authRole">viewer</span>
+    </div>
+    <div class="auth-bar-right">
+      <button class="auth-btn auth-btn-secondary" id="btnLogout">Đăng xuất</button>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div id="authModal" class="auth-modal-overlay">
+    <div class="auth-modal">
+      <div class="auth-modal-header">
+        <div>
+          <h2 id="authModalTitle">Đăng nhập</h2>
+          <p id="authModalSubtitle">Đăng nhập để quản lý task của bạn</p>
+        </div>
+        <button class="auth-modal-close" id="authModalCloseBtn" title="Đóng">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="auth-modal-body">
+        <form id="authForm">
+          <div class="auth-form-group" id="authUsernameGroup">
+            <label class="auth-form-label">Username hoặc Email</label>
+            <input type="text" class="auth-form-input" id="authUsernameInput" required>
+          </div>
+          <div class="auth-form-group" id="authEmailGroup" style="display: none;">
+            <label class="auth-form-label">Email</label>
+            <input type="email" class="auth-form-input" id="authEmailInput">
+          </div>
+          <div class="auth-form-group">
+            <label class="auth-form-label">Password</label>
+            <input type="password" class="auth-form-input" id="authPasswordInput" required>
+          </div>
+          <div id="authError" class="auth-form-error" style="display: none;"></div>
+          <div class="auth-form-footer">
+            <button type="submit" class="auth-submit-btn" id="authSubmitBtn">Đăng nhập</button>
+            <div class="auth-switch">
+              <span id="authSwitchText">Chưa có tài khoản?</span>
+              <a class="auth-switch-link" id="authSwitchLink">Đăng ký ngay</a>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task Detail Modal -->
+  <div id="taskModal" class="task-modal-overlay">
+    <div class="task-modal">
+      <div class="task-modal-header">
+        <div class="task-modal-title">
+          <h2 id="taskModalName">Task Name</h2>
+          <div class="task-modal-meta">
+            <span class="task-category-badge" id="taskModalCategory">
+              <span class="task-category-dot"></span>
+              <span>Category</span>
+            </span>
+            <span class="task-status-badge" id="taskModalStatus">Pending</span>
+          </div>
+        </div>
+        <button class="task-modal-close" id="taskModalClose">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="task-modal-body">
+        <div class="task-modal-section">
+          <label class="task-modal-label">Lý do</label>
+          <div class="task-modal-value" id="taskModalReason"></div>
+        </div>
+        <div class="task-modal-section" id="taskModalDescSection">
+          <label class="task-modal-label">Mô tả chi tiết</label>
+          <div class="task-description-box">
+            <div class="task-modal-value" id="taskModalDescription"></div>
+          </div>
+        </div>
+        <div class="task-modal-section">
+          <label class="task-modal-label">Tiến độ hoàn thành</label>
+          <div class="task-progress-container">
+            <div class="task-progress-bar">
+              <div class="task-progress-fill" id="taskModalProgressBar"></div>
+            </div>
+            <div class="task-progress-text" id="taskModalProgressText">0%</div>
+          </div>
+        </div>
+        <div class="task-modal-section">
+          <label class="task-modal-label">Thời gian</label>
+          <div class="task-dates-grid">
+            <div class="task-date-item">
+              <div class="task-date-label">Ngày tạo</div>
+              <div class="task-date-value" id="taskModalCreatedDate">-</div>
+            </div>
+            <div class="task-date-item" id="taskModalDueDateItem">
+              <div class="task-date-label">Ngày dự kiến</div>
+              <div class="task-date-value" id="taskModalDueDate">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="task-modal-footer">
+        <button class="btn btn-sm btn-outline" id="taskModalEdit">Chỉnh sửa</button>
+        <button class="btn btn-sm btn-primary" id="taskModalCloseBtn">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Task Modal -->
+  <div id="editTaskModal" class="task-modal-overlay">
+    <div class="task-modal">
+      <div class="task-modal-header">
+        <h2>Sửa task</h2>
+        <button class="task-modal-close" id="editTaskModalClose">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="task-modal-body">
+        <div class="edit-form-group">
+          <label>Tên task</label>
+          <input type="text" id="editTaskName" class="edit-input">
+        </div>
+        <div class="edit-form-group">
+          <label>Lý do</label>
+          <input type="text" id="editTaskReason" class="edit-input">
+        </div>
+        <div class="edit-form-group">
+          <label>Mô tả chi tiết</label>
+          <textarea id="editTaskDesc" class="edit-input" rows="3" placeholder="Nhập mô tả chi tiết..."></textarea>
+        </div>
+        <div class="edit-form-row">
+          <div class="edit-form-group">
+            <label>Tiến độ (%)</label>
+            <label>Tiến độ (<span id="editProgressLabel">0</span>%)</label>
+            <input type="range" id="editTaskProgress" class="edit-range" min="0" max="100" oninput="document.getElementById('editProgressLabel').textContent=this.value">
+          </div>
+          <div class="edit-form-group">
+            <label>Ngày dự kiến</label>
+            <input type="date" id="editTaskDueDate" class="edit-input">
+          </div>
+        </div>
+      </div>
+      <div class="task-modal-footer">
+        <button class="btn btn-sm btn-primary" id="editTaskSave">Lưu</button>
+        <button class="btn btn-sm btn-ghost" id="editTaskCancel">Huỷ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Task Modal -->
+  <div id="addTaskModal" class="task-modal-overlay">
+    <div class="task-modal">
+      <div class="task-modal-header">
+        <h2>Thêm task mới</h2>
+        <button class="task-modal-close" id="addTaskModalClose">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="task-modal-body">
+        <div class="edit-form-group"><label>Tên task *</label><input type="text" id="addTaskName" class="edit-input" placeholder="Nhập tên task"></div>
+        <div class="edit-form-group"><label>Lý do</label><input type="text" id="addTaskReason" class="edit-input" placeholder="Lý do tạo task"></div>
+        <div class="edit-form-group"><label>Mô tả chi tiết</label><textarea id="addTaskDesc" class="edit-input" rows="3" placeholder="Mô tả chi tiết..."></textarea></div>
+        <div class="edit-form-row">
+          <div class="edit-form-group"><label>Danh mục *</label><select id="addTaskCategory" class="edit-input"></select></div>
+          <div class="edit-form-group"><label>Ưu tiên</label><select id="addTaskPriority" class="edit-input"><option value="medium">Vừa</option><option value="low">Thấp</option><option value="high">Cao</option></select></div>
+        </div>
+        <div class="edit-form-row">
+          <div class="edit-form-group"><label>Ngày tạo</label><input type="date" id="addTaskDate" class="edit-input"></div>
+          <div class="edit-form-group"><label>Ngày dự kiến</label><input type="date" id="addTaskDueDate" class="edit-input"></div>
+        </div>
+        <div class="edit-form-group"><label>Tiến độ (<span id="addProgressLabel">0</span>%)</label><input type="range" id="addTaskProgress" class="edit-range" min="0" max="100" value="0" oninput="document.getElementById('addProgressLabel').textContent=this.value"></div>
+      </div>
+      <div class="task-modal-footer">
+        <button class="btn btn-sm btn-primary" id="addTaskSave">Thêm task</button>
+        <button class="btn btn-sm btn-ghost" id="addTaskCancel">Huỷ</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="app">
+    <!-- Viewer Notice -->
+    <div id="viewerNotice" class="viewer-notice" style="display: none;">
+      ⚠️ Bạn đang ở chế độ xem. Đăng nhập để tạo, sửa, xóa task.
+    </div>
+    <!-- Header -->
+    <header class="header">
+      <h1>📋 NoteTasks</h1>
+      <p class="subtitle">Quản lý công việc theo danh mục ngày & lý do</p>
+    </header>
+
+    <!-- Filters -->
+    <section class="filters card">
+      <div class="filter-row">
+        <input type="date" id="filterDate">
+        <select id="filterCategory">
+          <option value="">Tất cả danh mục</option>
+        </select>
+        <select id="filterStatus">
+          <option value="">Tất cả trạng thái</option>
+          <option value="false">Chưa xong</option>
+          <option value="true">Đã xong</option>
+        </select>
+        <div class="search-wrapper">
+          <input type="text" id="filterSearch" placeholder="Tìm kiếm...">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="main-grid">
+      <!-- Cột Tasks full width -->
+      <section class="col-tasks">
+        <div class="section-header">
+          <h2><svg style="width:18px;height:18px;vertical-align:-3px;margin-right:4px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Danh sách Task</h2>
+        </div>
+        <div id="taskList" class="list"></div>
+      </section>
+    </main>
+
+    <!-- Toast -->
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="app.js"></script>
+
+  <!-- ===== Chatbot Widget ===== -->
+  <div id="bot-widget-wrapper">
+    <div id="bot-widget-fab">
+      <div class="fab-body">
+        <div class="fab-icon">
+          <div class="eyes-wrapper">
+            <div class="eye"><div class="pupil"></div></div>
+            <div class="eye"><div class="pupil"></div></div>
+          </div>
+          <div class="mouth"></div>
+        </div>
+        <div class="beam-particles">
+          <div class="beam-particle"></div>
+          <div class="beam-particle"></div>
+          <div class="beam-particle"></div>
+          <div class="beam-particle"></div>
+          <div class="beam-particle"></div>
+        </div>
+        <svg class="fab-icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </div>
+    </div>
+
+    <div class="bot-bubble" id="bot-message-bubble"></div>
+
+    <div id="bot-chat-window">
+      <div class="chat-resize-handle" id="bot-resize-handle"></div>
+      <div class="chat-header">
+        <div style="display:flex;flex-direction:column;">
+          <h3 style="margin-bottom:2px !important;">UFO Bot</h3>
+          <div style="display:flex;align-items:center;font-size:9px;opacity:0.82;margin-top:2px;gap:5px;">
+            <span class="status-dot online"></span>
+            <span id="bot-header-status">Ngữ cảnh NoteTasks</span>
+            <span style="margin-left:8px;padding:2px 6px;background:rgba(255,255,255,0.15);border-radius:4px;font-weight:600;" id="bot-message-count">0/20</span>
+          </div>
+        </div>
+        <div class="header-actions" style="display:flex;align-items:center;gap:8px;">
+          <div class="theme-dot" style="background:#6c8ebf" data-color="#6c8ebf" title="Mặc định"></div>
+          <div class="theme-dot" style="background:#6db580" data-color="#6db580" title="Xanh lá"></div>
+          <div class="theme-dot" style="background:#c97b84" data-color="#c97b84" title="Hồng"></div>
+          <div class="theme-dot" style="background:#d4956a" data-color="#d4956a" title="GenZ"></div>
+          <button class="sleep-btn-header" id="bot-new-chat" title="Chat mới">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          </button>
+          <button class="sleep-btn-header" id="bot-reset-size" title="Reset kích thước">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+          </button>
+          <button class="sleep-btn-header" id="bot-close-chat" title="Đóng">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+      </div>
+      <div class="chat-messages" id="bot-messages-container" style="display:flex;">
+        <div class="message-container bot-msg-container">
+          <div class="message bot">Xin chào! Tôi là trợ lý NoteTasks. Tôi giúp bạn <strong>tạo task, quản lý danh mục, xem công việc theo ngày</strong>. Hãy thử click nút bên dưới hoặc gõ câu hỏi nhé!</div>
+        </div>
+      </div>
+      <div id="bot-toast-stack" role="status" aria-live="polite"></div>
+      <div class="chat-input-area" id="bot-footer-area">
+        <div class="input-resizer-handle" id="bot-input-resizer"></div>
+        <input type="file" id="bot-file-input" class="hidden-file-input" accept=".xlsx,.xls,.docx,.doc,.txt">
+        <button class="upload-btn" id="bot-file-upload-btn" title="Tải lên tài liệu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M 21.44 11.05 l -9.19 9.19 a 6 6 0 0 1 -8.49 -8.49 l 9.19 -9.19 a 4 4 0 0 1 5.66 5.66 l -9.2 9.19 a 2 2 0 0 1 -2.83 -2.83 l 8.49 -8.48"></path>
+          </svg>
+        </button>
+        <textarea id="bot-input-field" placeholder="Hỏi tôi điều gì đó..."></textarea>
+        <button class="send-btn" id="bot-send-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        </button>
+      </div>
+
+      <div id="bot-limit-warning">
+        Đã đạt giới hạn câu hỏi! <b id="bot-reset-limit-btn">Bắt đầu lại</b>
+      </div>
+
+      <div id="bot-confirm-modal">
+        <div class="confirm-content">
+          <h4 id="bot-confirm-title">Xác nhận</h4>
+          <p id="bot-confirm-msg">Bạn có chắc không?</p>
+          <div class="confirm-buttons">
+            <button class="confirm-btn yes" id="bot-confirm-yes">Đồng ý</button>
+            <button class="confirm-btn no" id="bot-confirm-no">Huỷ</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="bot-feedback-modal">
+        <div class="feedback-content">
+          <h4 style="margin-bottom:10px;">Cảm ơn bạn đã góp ý!</h4>
+          <p style="font-size:13px;color:#64748b;">Bạn có thể thử lại, tôi sẽ suy nghĩ kỹ hơn!</p>
+          <div class="feedback-buttons">
+            <button class="feedback-btn retry" id="bot-feedback-retry">Thử lại</button>
+            <button class="feedback-btn close" id="bot-feedback-close">Đóng</button>
+          </div>
+        </div>
+      </div>
+      <div class="chat-resize-handle-bottom" id="bot-resize-handle-bottom"></div>
+    </div>
+  </div>
+
+  <script src="chatbot-ui.js"></script>
+</body>
+</html>
