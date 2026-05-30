@@ -38,6 +38,34 @@
 #bot-widget-wrapper #bot-widget-fab:active { transform: scale(0.95); }
 #bot-widget-wrapper #bot-widget-fab.sleeping { opacity: 0.3; transform: scale(0.8); filter: grayscale(100%) blur(0.5px); }
 
+/* Khi đang lộn nhào: tắt mọi animation/hover/active để JS giữ quyền điều khiển transform */
+#bot-widget-wrapper #bot-widget-fab.is-bouncing,
+#bot-widget-wrapper #bot-widget-fab.is-bouncing:hover,
+#bot-widget-wrapper #bot-widget-fab.is-bouncing:active {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* Khi đang bay (double-click): chùm đèn sáng rực, không pulse */
+#bot-widget-wrapper #bot-widget-fab.is-flying,
+#bot-widget-wrapper #bot-widget-fab.is-flying:hover,
+#bot-widget-wrapper #bot-widget-fab.is-flying:active {
+  animation: none !important;
+  transition: none !important;
+  cursor: progress;
+}
+#bot-widget-wrapper #bot-widget-fab.is-flying .fab-body::after {
+  animation: none !important;
+  opacity: 0.95 !important;
+  filter: drop-shadow(0 4px 14px var(--bot-primary));
+}
+#bot-widget-wrapper #bot-widget-fab.is-flying .fab-body {
+  box-shadow: 0 8px 30px var(--bot-primary), 0 0 20px var(--bot-primary), 0 4px 12px rgba(0,0,0,0.4);
+}
+#bot-widget-wrapper #bot-widget-fab.is-flying .beam-particle {
+  animation-duration: 0.6s !important;
+}
+
 @keyframes ufoFloat {
   0%, 100% { transform: translateY(0px) rotate(0deg); }
   50% { transform: translateY(-8px) rotate(-2deg); }
@@ -46,6 +74,13 @@
 @keyframes ufoHover {
   0%, 100% { transform: scale(1.1) rotate(5deg); }
   50% { transform: scale(1.15) rotate(-5deg); }
+}
+
+/* Lộn nhào tại chỗ ngẫu nhiên */
+@keyframes idleTumble {
+  0%   { transform: translateY(0) rotate(0deg); }
+  50%  { transform: translateY(-10px) rotate(360deg); }
+  100% { transform: translateY(0) rotate(720deg); }
 }
 
 #bot-widget-wrapper .fab-body {
@@ -192,6 +227,43 @@
 #bot-widget-wrapper #bot-widget-fab:not(.sleeping):not(.popup-open) .eye {
   animation: blinkEyes 6s infinite;
   transform-origin: center;
+}
+
+/* Welcome animation khi load trang: pupil di chuyển mượt + blink nhanh */
+@keyframes welcomeBlink {
+  0%, 100% { transform: scaleY(1); }
+  45%, 55% { transform: scaleY(0.08); }
+}
+#bot-widget-wrapper #bot-widget-fab.is-welcoming .pupil {
+  transition: transform 0.45s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* Mắt lốc xoáy khi sắp dừng: cả con mắt biến thành cánh quạt xoay tròn */
+@keyframes dizzySpinEye {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+#bot-widget-wrapper #bot-widget-fab.dizzy .eye {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    var(--bot-secondary) 0deg,
+    #fff 45deg,
+    var(--bot-secondary) 90deg,
+    #fff 135deg,
+    var(--bot-secondary) 180deg,
+    #fff 225deg,
+    var(--bot-secondary) 270deg,
+    #fff 315deg,
+    var(--bot-secondary) 360deg
+  );
+  box-shadow: 0 0 5px rgba(255,255,255,0.8), 0 0 2px var(--bot-secondary);
+  animation: dizzySpinEye 0.4s linear infinite;
+  transform-origin: center;
+}
+#bot-widget-wrapper #bot-widget-fab.dizzy .pupil {
+  display: none;
 }
 
 /* ===== Chat Window ===== */

@@ -123,6 +123,7 @@
   let deletedTaskSnapshots = [];
   const maxHistoryMessages = 12;
   let suppressNextFabClick = false;
+  let bounceAnimId = null;
   let botAuthToken = null;
   let botCurrentUser = null;
   let messageCount = 0;
@@ -1971,6 +1972,12 @@
     let startTop = 0;
     let didDrag = false;
     let pointerActive = false;
+    let lastMoveX = 0;
+    let lastMoveY = 0;
+    let lastMoveTime = 0;
+    let dragStartTime = 0;
+    let recentVx = 0;
+    let recentVy = 0;
 
     function clamp(value, min, max) {
       return Math.min(Math.max(value, min), max);
@@ -1997,6 +2004,80 @@
       localStorage.setItem(storageKey, JSON.stringify({ left: rect.left, top: rect.top }));
     }
 
+    function startBounce(vx, vy) {
+      if (bounceAnimId) cancelAnimationFrame(bounceAnimId);
+
+      // Tắt transition + CSS animation (ufoFloat/ufoHover) để rotation 3D không bị ghi đè
+      fab.style.transition = 'none';
+      fab.style.animation = 'none';
+      fab.classList.add('is-bouncing');
+
+      const rect = fab.getBoundingClientRect();
+      let x = rect.left;
+      let y = rect.top;
+      const w = rect.width;
+      const h = rect.height;
+      const friction = 0.985;
+      const bounceDamping = 0.75;
+      let rotation = 0;
+      let rotSpeed = (vx + vy) * 3;
+      const minVel = 0.3;
+
+      function animate() {
+        // Cập nhật vị trí
+        x += vx;
+        y += vy;
+
+        // Dội tường trái/phải
+        if (x <= 4) { x = 4; vx = Math.abs(vx) * bounceDamping; rotSpeed = -rotSpeed * 0.8; }
+        if (x + w >= window.innerWidth - 4) { x = window.innerWidth - w - 4; vx = -Math.abs(vx) * bounceDamping; rotSpeed = -rotSpeed * 0.8; }
+
+        // Dội tường trên/dưới
+        if (y <= 4) { y = 4; vy = Math.abs(vy) * bounceDamping; rotSpeed = -rotSpeed * 0.8; }
+        if (y + h >= window.innerHeight - 4) { y = window.innerHeight - h - 4; vy = -Math.abs(vy) * bounceDamping; rotSpeed = -rotSpeed * 0.8; }
+
+        // Ma sát
+        vx *= friction;
+        vy *= friction;
+        rotSpeed *= friction;
+
+        // Xoay lộn nhào 2D (chỉ rotateZ)
+        rotation += rotSpeed;
+
+        // Áp dụng vị trí + xoay 2D
+        fab.style.left = `${x}px`;
+        fab.style.top = `${y}px`;
+        fab.style.transform = `rotate(${rotation}deg)`;
+        wrapper.style.setProperty('--bot-fab-left', `${x}px`);
+        wrapper.style.setProperty('--bot-fab-top', `${y}px`);
+        wrapper.classList.add('is-positioned');
+
+        // Lảo đảo khi sắp dừng
+        const speed = Math.hypot(vx, vy);
+        if (speed < 3 && !fab.classList.contains('dizzy')) {
+          fab.classList.add('dizzy');
+        } else if (speed >= 3 && fab.classList.contains('dizzy')) {
+          fab.classList.remove('dizzy');
+        }
+
+        // Dừng khi đủ chậm
+        if (speed < minVel && Math.abs(rotSpeed) < 0.5) {
+          fab.style.transform = '';
+          fab.style.transition = '';
+          fab.style.animation = '';
+          fab.classList.remove('dizzy');
+          fab.classList.remove('is-bouncing');
+          savePosition();
+          bounceAnimId = null;
+          return;
+        }
+
+        bounceAnimId = requestAnimationFrame(animate);
+      }
+
+      bounceAnimId = requestAnimationFrame(animate);
+    }
+
     function restorePosition() {
       try {
         const raw = localStorage.getItem(storageKey);
@@ -2010,6 +2091,9 @@
     function onPointerDown(event) {
       if (event.button !== undefined && event.button !== 0) return;
 
+      // Dừng bounce nếu đang bay
+      if (bounceAnimId) { cancelAnimationFrame(bounceAnimId); bounceAnimId = null; fab.style.transform = ''; fab.style.transition = ''; fab.style.animation = ''; fab.classList.remove('dizzy'); fab.classList.remove('is-bouncing'); }
+
       const rect = fab.getBoundingClientRect();
       startX = event.clientX;
       startY = event.clientY;
@@ -2017,8 +2101,14 @@
       startTop = rect.top;
       didDrag = false;
       pointerActive = true;
+      lastMoveX = event.clientX;
+      lastMoveY = event.clientY;
+      lastMoveTime = Date.now();
+      dragStartTime = Date.now();
+      recentVx = 0;
+      recentVy = 0;
 
-      fab.setPointerCapture?.(event.pointerId);
+      try { fab.setPointerCapture?.(event.pointerId); } catch(e) {}
       fab.style.cursor = 'grabbing';
     }
 
@@ -2027,6 +2117,19 @@
 
       const dx = event.clientX - startX;
       const dy = event.clientY - startY;
+
+      // Tính vận tốc tức thời (px/ms) dựa trên chuyển động gần nhất
+      const now = Date.now();
+      const dt = now - lastMoveTime;
+      if (dt > 0) {
+        // Smoothing nhẹ để không giật khi pointer rung
+        recentVx = recentVx * 0.4 + ((event.clientX - lastMoveX) / dt) * 0.6;
+        recentVy = recentVy * 0.4 + ((event.clientY - lastMoveY) / dt) * 0.6;
+      }
+      lastMoveX = event.clientX;
+      lastMoveY = event.clientY;
+      lastMoveTime = now;
+
       if (Math.hypot(dx, dy) < 4 && !didDrag) return;
 
       didDrag = true;
@@ -2039,13 +2142,27 @@
         suppressNextFabClick = true;
         savePosition();
         setTimeout(() => { suppressNextFabClick = false; }, 0);
+
+        // Chỉ ném khi user vung tay thực sự:
+        //   1. Pointer vẫn đang di chuyển ngay lúc thả (last move < 100ms ago)
+        //   2. Vận tốc tức thời đủ lớn (không phải kéo chậm thả)
+        const timeSinceLastMove = Date.now() - lastMoveTime;
+        const speedBoost = 40;
+        const vx = recentVx * speedBoost;
+        const vy = recentVy * speedBoost;
+        const throwSpeed = Math.hypot(vx, vy);
+        const MIN_THROW_SPEED = 14;
+
+        if (timeSinceLastMove < 100 && throwSpeed > MIN_THROW_SPEED) {
+          startBounce(vx, vy);
+        }
       }
 
       startX = 0;
       startY = 0;
       pointerActive = false;
       fab.style.cursor = '';
-      fab.releasePointerCapture?.(event.pointerId);
+      try { fab.releasePointerCapture?.(event.pointerId); } catch(e) {}
     }
 
     function onResize() {
@@ -2056,17 +2173,74 @@
       }
     }
 
+    // ===== Bay đến vị trí chuột khi double-click =====
+    let flyAnimId = null;
+
+    function flyTo(targetLeft, targetTop) {
+      // Huỷ bounce/fly cũ nếu đang chạy
+      if (bounceAnimId) { cancelAnimationFrame(bounceAnimId); bounceAnimId = null; fab.classList.remove('dizzy'); fab.classList.remove('is-bouncing'); }
+      if (flyAnimId) { cancelAnimationFrame(flyAnimId); flyAnimId = null; }
+
+      fab.style.transition = 'none';
+      fab.style.animation = 'none';
+      fab.style.transform = '';
+      fab.classList.add('is-flying');
+
+      const rect = fab.getBoundingClientRect();
+      const startLeft = rect.left;
+      const startTop = rect.top;
+      const dx = targetLeft - startLeft;
+      const dy = targetTop - startTop;
+      const distance = Math.hypot(dx, dy);
+      if (distance < 2) { fab.classList.remove('is-flying'); fab.style.animation = ''; return; }
+
+      const duration = Math.min(900, Math.max(280, distance * 1.4));
+      const startTime = performance.now();
+      const ease = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+      function step(now) {
+        const progress = Math.min(1, (now - startTime) / duration);
+        const eased = ease(progress);
+        applyPosition(startLeft + dx * eased, startTop + dy * eased);
+
+        if (progress < 1) {
+          flyAnimId = requestAnimationFrame(step);
+        } else {
+          fab.classList.remove('is-flying');
+          fab.style.animation = '';
+          savePosition();
+          flyAnimId = null;
+        }
+      }
+      flyAnimId = requestAnimationFrame(step);
+    }
+
+    function onDoubleClick(event) {
+      // Bỏ qua nếu double-click trên chính bot hoặc chat window
+      if (fab.contains(event.target)) return;
+      const chatWindow = document.getElementById('bot-chat-window');
+      if (chatWindow && chatWindow.contains(event.target)) return;
+
+      const rect = fab.getBoundingClientRect();
+      const targetLeft = event.clientX - rect.width / 2;
+      const targetTop = event.clientY - rect.height / 2;
+      flyTo(targetLeft, targetTop);
+    }
+
     restorePosition();
     fab.addEventListener('pointerdown', onPointerDown);
     fab.addEventListener('pointermove', onPointerMove);
     fab.addEventListener('pointerup', onPointerUp);
     fab.addEventListener('pointercancel', onPointerUp);
     window.addEventListener('resize', onResize);
+    document.addEventListener('dblclick', onDoubleClick);
   }
 
   // ===== Event Listeners =====
   fab?.addEventListener('click', () => {
     if (suppressNextFabClick) return;
+    // Dừng bounce nếu đang bay
+    if (bounceAnimId) { cancelAnimationFrame(bounceAnimId); bounceAnimId = null; fab.style.transform = ''; fab.style.transition = ''; fab.style.animation = ''; fab.classList.remove('dizzy'); fab.classList.remove('is-bouncing'); }
     setOpen(!wrapper.classList.contains('is-open'));
   });
   sendBtn?.addEventListener('click', sendMessage);
@@ -2163,6 +2337,71 @@
   setupChatResize();
   setupEyeTracking();
   setupDraggableWidget();
+  setupIdleTumble();
+  playWelcomeEyes();
+
+  // Welcome eyes khi load trang: liếc trái → phải → xuống → blink → về giữa
+  function playWelcomeEyes() {
+    if (!fab) return;
+    fab.classList.add('is-welcoming');
+
+    // Pupil maxOffset trùng với setupEyeTracking (2.2px)
+    const sequence = [
+      { x: -2.2, y: 0, delay: 350 },    // liếc trái
+      { x: 2.2, y: 0, delay: 600 },     // liếc phải
+      { x: 2.2, y: 1.5, delay: 500 },   // nhìn xuống-phải
+      { x: -2.2, y: 1.5, delay: 500 },  // nhìn xuống-trái
+      { x: 0, y: -1.5, delay: 500 },    // ngước lên
+      { x: 0, y: 0, delay: 400 },       // về giữa
+    ];
+
+    let t = 200; // chờ chút sau khi mount
+    sequence.forEach((step, i) => {
+      setTimeout(() => {
+        wrapper.style.setProperty('--pupil-x', `${step.x}px`);
+        wrapper.style.setProperty('--pupil-y', `${step.y}px`);
+        // Blink nhanh tại bước thứ 3 (nhìn xuống) và bước cuối
+        if (i === 2 || i === sequence.length - 1) {
+          fab.querySelectorAll('.eye').forEach(eye => {
+            eye.style.animation = 'welcomeBlink 0.3s ease-in-out';
+            setTimeout(() => { eye.style.animation = ''; }, 320);
+          });
+        }
+      }, t);
+      t += step.delay;
+    });
+
+    // Kết thúc: gỡ class để eye-tracking thường tiếp quản
+    setTimeout(() => {
+      fab.classList.remove('is-welcoming');
+    }, t + 100);
+  }
+
+  // Tự lộn nhào tại chỗ sau ngẫu nhiên 2-5s
+  function setupIdleTumble() {
+    if (!fab) return;
+    const busyClasses = ['popup-open', 'is-bouncing', 'is-flying', 'sleeping', 'dizzy'];
+    const isBusy = () => busyClasses.some(c => fab.classList.contains(c));
+
+    function tumbleOnce() {
+      if (isBusy()) return;
+      fab.style.animation = 'idleTumble 0.55s linear';
+      setTimeout(() => {
+        if (fab.style.animation && fab.style.animation.includes('idleTumble')) {
+          fab.style.animation = '';
+        }
+      }, 570);
+    }
+
+    function scheduleNext() {
+      const delay = 2000 + Math.random() * 3000; // 2-5s
+      setTimeout(() => {
+        tumbleOnce();
+        scheduleNext();
+      }, delay);
+    }
+    scheduleNext();
+  }
 
   // ===== Auth Integration =====
   window.updateChatbotAuth = function(user, token) {
