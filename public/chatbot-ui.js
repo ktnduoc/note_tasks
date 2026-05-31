@@ -9,20 +9,38 @@
   let cooldownMs = 30000;
   let configLoaded = false;
 
-  // Model switching: OSS (Cerebras) hoặc Kimi (OpenRouter)
-  let currentModelType = 'oss'; // 'oss' hoặc 'kimi'
-  let kimiApiKey = ''; // Sẽ load từ server
+  // Model switching: đã test - chỉ giữ model hoạt động
+  let currentModelType = 'gemma31b'; // Mặc định Gemma (free, ổn định)
+  let kimiApiKey = ''; // Sẽ load từ server (OpenRouter key)
   const modelConfigs = {
     oss: {
-      name: 'OSS (Cerebras)',
+      name: 'OSS 120B (Cerebras)',
       apiBase: 'https://api.cerebras.ai/v1',
       model: 'gpt-oss-120b',
       getKeys: () => apiKeys,
     },
     kimi: {
-      name: 'Kimi (OpenRouter)',
+      name: 'Kimi K2.6 (Paid)',
       apiBase: 'https://openrouter.ai/api/v1',
       model: 'moonshotai/kimi-k2.6',
+      getKeys: () => kimiApiKey ? [kimiApiKey] : [],
+    },
+    gptoss: {
+      name: 'GPT-OSS 120B (Free)',
+      apiBase: 'https://openrouter.ai/api/v1',
+      model: 'openai/gpt-oss-120b:free',
+      getKeys: () => kimiApiKey ? [kimiApiKey] : [],
+    },
+    gemma31b: {
+      name: 'Gemma 4 31B (Free)',
+      apiBase: 'https://openrouter.ai/api/v1',
+      model: 'google/gemma-4-31b-it:free',
+      getKeys: () => kimiApiKey ? [kimiApiKey] : [],
+    },
+    nemotron: {
+      name: 'Nemotron 3 Super (Free)',
+      apiBase: 'https://openrouter.ai/api/v1',
+      model: 'nvidia/nemotron-3-super-120b-a12b:free',
       getKeys: () => kimiApiKey ? [kimiApiKey] : [],
     },
   };
@@ -81,6 +99,8 @@
   const fab = document.getElementById('bot-widget-fab');
   const input = document.getElementById('bot-input-field');
   const sendBtn = document.getElementById('bot-send-btn');
+  const sendBtnOriginalHTML = sendBtn ? sendBtn.innerHTML : '';
+  let abortController = null; // Để dừng request đang chạy
   const messages = document.getElementById('bot-messages-container');
   const resizeHandle = document.getElementById('bot-input-resizer');
   const newChatBtn = document.getElementById('bot-new-chat');
@@ -1256,8 +1276,22 @@
 
   function setSendingState(sending) {
     isSending = sending;
-    if (sendBtn) sendBtn.disabled = sending;
     if (input) input.disabled = sending;
+    if (sendBtn) {
+      if (sending) {
+        // Chuyển sang nút dừng
+        sendBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>';
+        sendBtn.classList.add('stop-btn');
+        sendBtn.disabled = false;
+        sendBtn.title = 'Dừng';
+      } else {
+        // Trở về nút gửi
+        sendBtn.innerHTML = sendBtnOriginalHTML;
+        sendBtn.classList.remove('stop-btn');
+        sendBtn.disabled = false;
+        sendBtn.title = 'Gửi';
+      }
+    }
     setStatus(sending ? 'processing' : 'online');
   }
 
@@ -1277,6 +1311,11 @@
     let hasShownThinking = false; // Chỉ hiển thị "Đang suy nghĩ..." một lần
 
     while (true) {
+      // Kiểm tra nếu người dùng đã bấm dừng
+      if (abortController?.signal.aborted) {
+        reader.cancel();
+        throw new Error('Đã dừng.');
+      }
       const { value, done } = await reader.read();
       if (done) break;
 
@@ -1710,8 +1749,8 @@
         ],
       };
 
-      // Kimi cần thêm max_tokens
-      if (currentModelType === 'kimi') {
+      // OpenRouter models cần max_tokens
+      if (config.apiBase.includes('openrouter')) {
         body.max_tokens = 1000;
       }
 
@@ -1725,6 +1764,7 @@
             'X-Title': 'NoteTasks Chatbot',
           },
           body: JSON.stringify(body),
+          signal: abortController?.signal,
         });
 
         if (streamRes.status === 429) {
@@ -1740,6 +1780,9 @@
 
         return await readStreamWithTools(streamRes, targetBubble);
       } catch (err) {
+        if (err.name === 'AbortError') {
+          throw new Error('Đã dừng.');
+        }
         if (err.message.includes('rate limit')) {
           lastError = err;
           continue;
@@ -1772,6 +1815,7 @@
     showThinkingInBubble(botMessage.bubble);
 
     setSendingState(true);
+    abortController = new AbortController();
     try {
       // Xử lý command /edit /del
       const cmdResult = await handleCommand(text, botMessage.bubble);
@@ -1782,8 +1826,10 @@
         await callCerebras(text, botMessage.bubble);
       }
     } catch (error) {
-      setBotMessageContent(botMessage.bubble, `[!] ${error.message}`);
+      const msg = error.message === 'Đã dừng.' ? '⏹ Đã dừng.' : `[!] ${error.message}`;
+      setBotMessageContent(botMessage.bubble, msg);
     } finally {
+      abortController = null;
       setSendingState(false);
       input?.focus();
     }
@@ -1797,18 +1843,42 @@
     if (t === '/model' || t.startsWith('/model ')) {
       const parts = t.split(/\s+/);
       if (parts.length === 1) {
-        // Hiển thị model hiện tại và danh sách
+        // Hiển thị model hiện tại + danh sách dạng link bấm được
         const current = modelConfigs[currentModelType];
-        const list = Object.entries(modelConfigs)
-          .map(([key, cfg]) => `- **${key}**: ${cfg.name}${key === currentModelType ? ' ✓' : ''}`)
-          .join('\n');
-        setBotMessageContent(targetBubble, `Model hiện tại: **${current.name}**\n\nDanh sách model:\n${list}\n\nGõ \`/model oss\` hoặc \`/model kimi\` để chuyển đổi.`);
+        let html = `<p>Model hiện tại: <strong>${escapeHtml(current.name)}</strong></p><ul>`;
+
+        Object.entries(modelConfigs).forEach(([key, cfg]) => {
+          const isActive = key === currentModelType;
+          if (isActive) {
+            html += `<li><strong>${escapeHtml(cfg.name)}</strong> ✓</li>`;
+          } else {
+            html += `<li><a href="#" data-model="${key}" style="text-decoration:none;color:#6c8ebf;cursor:pointer;">${escapeHtml(cfg.name)}</a></li>`;
+          }
+        });
+        html += '</ul>';
+
+        targetBubble.innerHTML = html;
+
+        // Gắn sự kiện click cho các link model
+        targetBubble.querySelectorAll('a[data-model]').forEach(link => {
+          link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const key = link.dataset.model;
+            const cfg = modelConfigs[key];
+            currentModelType = key;
+            localStorage.setItem('chatbot-model', key);
+            setBotMessageContent(targetBubble, `✅ Đã chuyển sang **${cfg.name}**!`);
+          });
+        });
+
+        scrollBottom();
         return true;
       }
 
       const targetModel = parts[1].toLowerCase();
       if (!modelConfigs[targetModel]) {
-        setBotMessageContent(targetBubble, `Model "${targetModel}" không tồn tại. Chỉ có: oss, kimi`);
+        const available = Object.keys(modelConfigs).join(', ');
+        setBotMessageContent(targetBubble, `Model "${targetModel}" không tồn tại. Có: ${available}`);
         return true;
       }
 
@@ -2365,7 +2435,13 @@
     if (bounceAnimId) { cancelAnimationFrame(bounceAnimId); bounceAnimId = null; fab.style.transform = ''; fab.style.transition = ''; fab.style.animation = ''; fab.classList.remove('dizzy'); fab.classList.remove('is-bouncing'); }
     setOpen(!wrapper.classList.contains('is-open'));
   });
-  sendBtn?.addEventListener('click', sendMessage);
+  sendBtn?.addEventListener('click', () => {
+    if (isSending && abortController) {
+      abortController.abort();
+    } else {
+      sendMessage();
+    }
+  });
   uploadBtn?.addEventListener('click', (e) => { e.preventDefault(); showToast('Chức năng đang phát triển.'); });
   input?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }

@@ -499,6 +499,13 @@
 }
 #bot-widget-wrapper .send-btn:hover { transform: scale(1.05); background: rgba(255,255,255,0.9) !important; }
 
+#bot-widget-wrapper .send-btn.stop-btn {
+  background: #ef4444 !important; color: white !important;
+}
+#bot-widget-wrapper .send-btn.stop-btn:hover {
+  background: #dc2626 !important; transform: scale(1.05);
+}
+
 #bot-widget-wrapper .upload-btn {
   background: rgba(255,255,255,0.1) !important; color: white !important;
   border: 1px solid rgba(255,255,255,0.2) !important; border-radius: 12px !important;
