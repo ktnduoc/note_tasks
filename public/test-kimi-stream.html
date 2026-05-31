@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Kimi Streaming</title>
+  <style>
+    body { font-family: monospace; max-width: 800px; margin: 20px auto; padding: 20px; background: #1a1a2e; color: #e0e0e0; }
+    #output { background: #16213e; padding: 16px; border-radius: 8px; min-height: 200px; white-space: pre-wrap; margin: 10px 0; }
+    #reasoning { background: #0f3460; padding: 12px; border-radius: 8px; margin: 10px 0; display: none; font-style: italic; color: #a0c4ff; }
+    button { padding: 10px 20px; background: #e94560; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+    button:hover { background: #c23152; }
+    input { padding: 10px; width: 70%; border-radius: 5px; border: 1px solid #333; background: #16213e; color: white; font-size: 14px; }
+    .status { color: #888; font-size: 12px; margin: 5px 0; }
+    h2 { color: #e94560; }
+  </style>
+</head>
+<body>
+  <h2>🧪 Test Kimi API Streaming (OpenRouter)</h2>
+  <div>
+    <input id="prompt" value="Xin chào, 1+1 bằng mấy?" placeholder="Nhập câu hỏi...">
+    <button onclick="testKimi()">Gửi (Kimi)</button>
+    <button onclick="testOss()" style="background:#6c8ebf">Gửi (OSS)</button>
+  </div>
+  <div class="status" id="status"></div>
+  <div id="reasoning"><strong>💭 Suy nghĩ:</strong><br><span id="reasoningText"></span></div>
+  <div id="output"></div>
+
+  <script>
+    async function loadConfig() {
+      const res = await fetch('/api/chatbot/config');
+      const json = await res.json();
+      return json.data;
+    }
+
+    async function testStream(modelType) {
+      const config = await loadConfig();
+      const output = document.getElementById('output');
+      const reasoning = document.getElementById('reasoning');
+      const reasoningText = document.getElementById('reasoningText');
+      const status = document.getElementById('status');
+
+      let apiKey, apiBase, model;
+      if (modelType === 'kimi') {
+        apiKey = config.kimiKey;
+        apiBase = 'https://openrouter.ai/api/v1';
+        model = 'moonshotai/kimi-k2.6';
+      } else {
+        apiKey = config.keys[0];
+        apiBase = config.apiBase;
+        model = config.model;
+      }
+
+      if (!apiKey) { output.textContent = '❌ Không có API key!'; return; }
+
+      status.textContent = '⏳ Đang gửi...';
+      output.textContent = '';
+      reasoning.style.display = 'none';
+      reasoningText.textContent = '';
+
+      try {
+        const res = await fetch(apiBase + '/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + apiKey,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'http://localhost:3002',
+            'X-Title': 'Test Streaming',
+          },
+          body: JSON.stringify({
+            model: model,
+            stream: true,
+            max_tokens: modelType === 'kimi' ? 1000 : undefined,
+            messages: [{ role: 'user', content: document.getElementById('prompt').value }],
+          }),
+        });
+
+        if (!res.ok) {
+          output.textContent = '❌ Lỗi ' + res.status + ': ' + (await res.text()).slice(0, 300);
+          status.textContent = '';
+          return;
+        }
+
+        status.textContent = '📡 Đang stream...';
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+        let fullReasoning = '';
+        let chunkCount = 0;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          const text = decoder.decode(value, { stream: true });
+          const lines = text.split('\n');
+
+          for (const line of lines) {
+            if (!line.startsWith('data:')) continue;
+            const payload = line.slice(5).trim();
+            if (!payload || payload === '[DONE]') continue;
+
+            try {
+              const json = JSON.parse(payload);
+              const delta = json.choices?.[0]?.delta;
+
+              if (delta?.reasoning) {
+                fullReasoning += delta.reasoning;
+                reasoning.style.display = 'block';
+                reasoningText.textContent = fullReasoning;
+              }
+
+              if (delta?.content) {
+                fullContent += delta.content;
+                output.textContent = fullContent;
+              }
+
+              chunkCount++;
+            } catch(e) {}
+          }
+        }
+
+        status.textContent = `✅ Hoàn thành (${chunkCount} chunks). Reasoning: ${fullReasoning.length} chars, Content: ${fullContent.length} chars`;
+        if (!fullContent) output.textContent = '(Không có nội dung)';
+      } catch(e) {
+        output.textContent = '❌ ' + e.message;
+        status.textContent = '';
+      }
+    }
+
+    function testKimi() { testStream('kimi'); }
+    function testOss() { testStream('oss'); }
+  </script>
+</body>
+</html>

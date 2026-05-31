@@ -1268,9 +1268,13 @@
 
     const decoder = new TextDecoder();
     let aggregated = '';
+    let reasoningAggregated = '';
     let buffer = '';
     let toolCalls = [];
     let finishReason = '';
+    let lastRenderTime = 0;
+    const renderThrottle = 50; // ms giữa các lần render
+    let hasShownThinking = false; // Chỉ hiển thị "Đang suy nghĩ..." một lần
 
     while (true) {
       const { value, done } = await reader.read();
@@ -1292,6 +1296,24 @@
           const delta = choice?.delta;
           finishReason = choice?.finish_reason || finishReason;
 
+          // Stream reasoning text (Kimi thinking) - hiển thị suy nghĩ realtime
+          const reasoningText = delta?.reasoning || '';
+          if (reasoningText && !aggregated) {
+            reasoningAggregated += reasoningText;
+            if (!hasShownThinking) hasShownThinking = true;
+            const now = Date.now();
+            if (now - lastRenderTime > renderThrottle) {
+              targetBubble.innerHTML =
+                '<details open style="opacity:0.75;font-size:0.9em;">' +
+                '<summary style="cursor:pointer;color:#888;">💭 Đang suy nghĩ...</summary>' +
+                '<div style="margin-top:4px;padding:6px 10px;background:rgba(0,0,0,0.04);border-radius:6px;white-space:pre-wrap;font-style:italic;">' +
+                escapeHtml(reasoningAggregated) +
+                '</div></details>';
+              scrollBottom();
+              lastRenderTime = now;
+            }
+          }
+
           // Gom tool calls từ delta
           if (delta?.tool_calls) {
             for (const tc of delta.tool_calls) {
@@ -1308,7 +1330,13 @@
           const text = delta?.content || '';
           if (text) {
             aggregated += text;
-            // Không hiển thị ngay, chờ đến khi hoàn thành
+            // Throttle render để tránh render quá nhiều
+            const now = Date.now();
+            if (now - lastRenderTime > renderThrottle) {
+              targetBubble.innerHTML = renderBotMarkdown(aggregated);
+              scrollBottom();
+              lastRenderTime = now;
+            }
           }
         } catch (e) { /* bỏ qua */ }
       }
@@ -1326,9 +1354,10 @@
       toolCalls.push({ function: { name: funcName, arguments: argsStr || '{}' } });
     }
 
-    // Hiển thị text
+    // Render lần cuối để đảm bảo hiển thị đầy đủ
     if (aggregated.trim()) {
-      setBotMessageContent(targetBubble, aggregated.trim() || 'Đang xử lý...');
+      targetBubble.innerHTML = renderBotMarkdown(aggregated.trim());
+      scrollBottom();
     }
 
     // Gọi tool nếu có
@@ -1348,13 +1377,26 @@
       if (toolResult) {
         // Thêm kết quả action vào sau câu trả lời ban đầu
         const finalText = (aggregated ? aggregated + '\n\n' : '') + toolResult;
-        await fakeStreamText(targetBubble, finalText);
+        setBotMessageContent(targetBubble, finalText);
         pushHistory('assistant', finalText);
       }
       return aggregated;
     }
 
+    // Thêm badge model cho trường hợp không có tool calls
     if (aggregated.trim()) {
+      const container = targetBubble.closest('.message-container');
+      if (container) {
+        const oldBadge = container.querySelector('.bot-model-badge');
+        if (oldBadge) oldBadge.remove();
+
+        const config = modelConfigs[currentModelType];
+        const badge = document.createElement('div');
+        badge.className = 'bot-model-badge';
+        badge.style.cssText = 'margin-top:4px;padding:2px 8px;background:rgba(0,0,0,0.05);border-radius:4px;font-size:9px;opacity:0.5;width:fit-content;';
+        badge.textContent = config.name;
+        container.appendChild(badge);
+      }
       pushHistory('assistant', aggregated);
     }
     return aggregated;
