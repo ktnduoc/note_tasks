@@ -9,6 +9,24 @@
   let cooldownMs = 30000;
   let configLoaded = false;
 
+  // Model switching: OSS (Cerebras) hoặc Kimi (OpenRouter)
+  let currentModelType = 'oss'; // 'oss' hoặc 'kimi'
+  let kimiApiKey = ''; // Sẽ load từ server
+  const modelConfigs = {
+    oss: {
+      name: 'OSS (Cerebras)',
+      apiBase: 'https://api.cerebras.ai/v1',
+      model: 'gpt-oss-120b',
+      getKeys: () => apiKeys,
+    },
+    kimi: {
+      name: 'Kimi (OpenRouter)',
+      apiBase: 'https://openrouter.ai/api/v1',
+      model: 'moonshotai/kimi-k2.6',
+      getKeys: () => kimiApiKey ? [kimiApiKey] : [],
+    },
+  };
+
   // Fetch keys từ server .env (bảo mật, không lộ key)
   async function loadConfig() {
     try {
@@ -19,6 +37,11 @@
         model = json.data.model || 'gpt-oss-120b';
         apiBase = json.data.apiBase || 'https://api.cerebras.ai/v1';
         cooldownMs = json.data.cooldown || 30000;
+
+        // Load Kimi key
+        if (json.data.kimiKey) {
+          kimiApiKey = json.data.kimiKey;
+        }
       }
     } catch (e) {
       console.error('Không load được config từ server:', e);
@@ -367,6 +390,23 @@
 
   function setBotMessageContent(targetBubble, text) {
     targetBubble.innerHTML = renderBotMarkdown(text);
+
+    // Thêm badge model bên ngoài bubble
+    const container = targetBubble.closest('.message-container');
+    if (container) {
+      // Xóa badge cũ nếu có
+      const oldBadge = container.querySelector('.bot-model-badge');
+      if (oldBadge) oldBadge.remove();
+
+      // Thêm badge mới
+      const config = modelConfigs[currentModelType];
+      const badge = document.createElement('div');
+      badge.className = 'bot-model-badge';
+      badge.style.cssText = 'margin-top:4px;padding:2px 8px;background:rgba(0,0,0,0.05);border-radius:4px;font-size:9px;opacity:0.5;width:fit-content;';
+      badge.textContent = config.name;
+      container.appendChild(badge);
+    }
+
     scrollBottom();
   }
 
@@ -1603,15 +1643,22 @@
 
   async function callCerebras(prompt, targetBubble) {
     await ensureConfig();
-    if (!apiKeys.length) throw new Error('Chưa có API key. Kiểm tra file .env.');
+
+    // Lấy config model hiện tại
+    const config = modelConfigs[currentModelType];
+    const keys = config.getKeys();
+
+    if (!keys.length) {
+      throw new Error(`Chưa có API key cho ${config.name}. Kiểm tra file .env.`);
+    }
 
     let lastError = null;
     // Thử tối đa số key có sẵn
-    for (let attempt = 0; attempt < apiKeys.length; attempt++) {
-      const { key, index } = getNextAvailableKey();
+    for (let attempt = 0; attempt < keys.length; attempt++) {
+      const key = keys[attempt % keys.length];
 
       const body = {
-        model,
+        model: config.model,
         stream: true,
         tools: tools,
         tool_choice: 'auto',
@@ -1621,25 +1668,32 @@
         ],
       };
 
+      // Kimi cần thêm max_tokens
+      if (currentModelType === 'kimi') {
+        body.max_tokens = 1000;
+      }
+
       try {
-        const streamRes = await fetch(`${apiBase}/chat/completions`, {
+        const streamRes = await fetch(`${config.apiBase}/chat/completions`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${key}`,
             'Content-Type': 'application/json',
+            'HTTP-Referer': 'http://localhost:3002',
+            'X-Title': 'NoteTasks Chatbot',
           },
           body: JSON.stringify(body),
         });
 
         if (streamRes.status === 429) {
-          markKeyRateLimited(index);
-          lastError = new Error(`Key #${index + 1} bị rate limit, đang chuyển key...`);
+          lastError = new Error(`${config.name} bị rate limit, đang thử lại...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
           continue;
         }
 
         if (!streamRes.ok) {
           const errText = await streamRes.text();
-          throw new Error(`Lỗi Cerebras (${streamRes.status}): ${errText.slice(0, 200)}`);
+          throw new Error(`Lỗi ${config.name} (${streamRes.status}): ${errText.slice(0, 200)}`);
         }
 
         return await readStreamWithTools(streamRes, targetBubble);
@@ -1652,7 +1706,7 @@
       }
     }
 
-    throw lastError || new Error('Tất cả API key đều không khả dụng.');
+    throw lastError || new Error(`Tất cả API key ${config.name} đều không khả dụng.`);
   }
 
   async function sendMessage() {
@@ -1696,6 +1750,32 @@
   // ===== Command Handler =====
   async function handleCommand(text, targetBubble) {
     const t = text.trim();
+
+    // /model - chuyển đổi model
+    if (t === '/model' || t.startsWith('/model ')) {
+      const parts = t.split(/\s+/);
+      if (parts.length === 1) {
+        // Hiển thị model hiện tại và danh sách
+        const current = modelConfigs[currentModelType];
+        const list = Object.entries(modelConfigs)
+          .map(([key, cfg]) => `- **${key}**: ${cfg.name}${key === currentModelType ? ' ✓' : ''}`)
+          .join('\n');
+        setBotMessageContent(targetBubble, `Model hiện tại: **${current.name}**\n\nDanh sách model:\n${list}\n\nGõ \`/model oss\` hoặc \`/model kimi\` để chuyển đổi.`);
+        return true;
+      }
+
+      const targetModel = parts[1].toLowerCase();
+      if (!modelConfigs[targetModel]) {
+        setBotMessageContent(targetBubble, `Model "${targetModel}" không tồn tại. Chỉ có: oss, kimi`);
+        return true;
+      }
+
+      currentModelType = targetModel;
+      localStorage.setItem('chatbot-model', currentModelType);
+      const newConfig = modelConfigs[currentModelType];
+      setBotMessageContent(targetBubble, `✅ Đã chuyển sang **${newConfig.name}**!`);
+      return true;
+    }
 
     // /add - mở modal thêm task
     if (t === '/add' || t === '/them') {
@@ -2301,6 +2381,12 @@
 
   // Pre-load config từ server .env
   loadConfig();
+
+  // Load saved model từ localStorage
+  const savedModel = localStorage.getItem('chatbot-model');
+  if (savedModel && modelConfigs[savedModel]) {
+    currentModelType = savedModel;
+  }
 
   // Tin nhắn gợi ý ngắn, xoay vòng
   const bubbleMessages = [

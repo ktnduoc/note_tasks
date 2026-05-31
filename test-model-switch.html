@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Model Switch</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .btn-primary {
+      background: #6c8ebf;
+      color: white;
+    }
+    .btn-success {
+      background: #6db580;
+      color: white;
+    }
+    .output {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f9f9f9;
+      border-left: 4px solid #6c8ebf;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .current-model {
+      display: inline-block;
+      padding: 5px 10px;
+      background: #e3f2fd;
+      border-radius: 4px;
+      margin-left: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🤖 Test Model Switching</h1>
+    <p>Model hiện tại: <span class="current-model" id="current-model">Đang tải...</span></p>
+
+    <div style="margin: 20px 0;">
+      <button class="btn-primary" onclick="testOSS()">Test OSS (Cerebras)</button>
+      <button class="btn-success" onclick="testKimi()">Test Kimi (OpenRouter)</button>
+      <button onclick="checkConfig()">Kiểm tra Config</button>
+    </div>
+
+    <div class="output" id="output">Nhấn nút để test...</div>
+  </div>
+
+  <script>
+    const output = document.getElementById('output');
+    const currentModelEl = document.getElementById('current-model');
+
+    function log(msg) {
+      output.textContent += msg + '\n';
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function clearLog() {
+      output.textContent = '';
+    }
+
+    async function checkConfig() {
+      clearLog();
+      log('🔍 Đang kiểm tra config từ server...\n');
+
+      try {
+        const res = await fetch('/api/chatbot/config');
+        const data = await res.json();
+        log('✅ Config loaded:');
+        log(JSON.stringify(data, null, 2));
+      } catch (err) {
+        log('❌ Lỗi: ' + err.message);
+      }
+    }
+
+    async function testOSS() {
+      clearLog();
+      log('🚀 Testing OSS (Cerebras)...\n');
+
+      try {
+        const res = await fetch('/api/chatbot/config');
+        const config = await res.json();
+
+        if (!config.data.keys || config.data.keys.length === 0) {
+          log('❌ Không có OSS API key');
+          return;
+        }
+
+        log('✅ OSS API keys: ' + config.data.keys.length + ' key(s)');
+        log('📝 Model: ' + config.data.model);
+        log('🌐 API Base: ' + config.data.apiBase);
+
+        currentModelEl.textContent = 'OSS (Cerebras)';
+        currentModelEl.style.background = '#e3f2fd';
+      } catch (err) {
+        log('❌ Lỗi: ' + err.message);
+      }
+    }
+
+    async function testKimi() {
+      clearLog();
+      log('🌙 Testing Kimi (OpenRouter)...\n');
+
+      try {
+        const res = await fetch('/api/chatbot/config');
+        const config = await res.json();
+
+        if (!config.data.kimiKey) {
+          log('❌ Không có Kimi API key');
+          return;
+        }
+
+        log('✅ Kimi API key: ' + config.data.kimiKey.substring(0, 20) + '...');
+        log('🌐 API Base: https://openrouter.ai/api/v1');
+        log('📝 Model: moonshotai/kimi-k2.6');
+
+        // Test thực tế
+        log('\n🔄 Đang gọi Kimi API...');
+        const testRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + config.data.kimiKey,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'http://localhost:3002',
+            'X-Title': 'NoteTasks Test'
+          },
+          body: JSON.stringify({
+            model: 'moonshotai/kimi-k2.6',
+            messages: [{ role: 'user', content: 'Xin chào, trả lời ngắn gọn: bạn là ai?' }],
+            max_tokens: 100
+          })
+        });
+
+        if (!testRes.ok) {
+          const errText = await testRes.text();
+          log('❌ Lỗi API: ' + testRes.status);
+          log(errText.substring(0, 200));
+          return;
+        }
+
+        const result = await testRes.json();
+        log('✅ Kimi API hoạt động!');
+        log('💬 Phản hồi: ' + result.choices[0].message.content);
+
+        currentModelEl.textContent = 'Kimi (OpenRouter)';
+        currentModelEl.style.background = '#c8e6c9';
+      } catch (err) {
+        log('❌ Lỗi: ' + err.message);
+      }
+    }
+
+    // Load initial state
+    checkConfig();
+  </script>
+</body>
+</html>

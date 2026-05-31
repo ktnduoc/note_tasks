@@ -32,6 +32,7 @@ app.get('/api/chatbot/config', (req, res) => {
       model: process.env.CHATBOT_MODEL || 'gpt-oss-120b',
       apiBase: process.env.CHATBOT_API_BASE || 'https://api.cerebras.ai/v1',
       cooldown: parseInt(process.env.CHATBOT_COOLDOWN) || 30000,
+      kimiKey: process.env.KIMI_API_KEY || '',
     },
   });
 });
