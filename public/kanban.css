@@ -1,0 +1,511 @@
+/* ===== Kanban Board ===== */
+.kanban-main {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.kanban-column {
+  background: #f1f5f9;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 280px;
+  border: 2px solid transparent;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.kanban-column.drag-over {
+  border-color: #6366f1;
+  background: #eef2ff;
+}
+
+/* Cột đang đồng bộ sau khi thả task */
+.kanban-column.is-syncing {
+  position: relative;
+}
+.kanban-column.is-syncing::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: linear-gradient(110deg, rgba(255,255,255,0) 30%, rgba(99,102,241,0.18) 50%, rgba(255,255,255,0) 70%);
+  background-size: 220% 100%;
+  animation: kanban-shimmer 1.1s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+.kanban-column.is-syncing::after {
+  content: 'Đang lưu...';
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #6366f1;
+  background: #fff;
+  padding: 2px 8px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  pointer-events: none;
+  z-index: 2;
+}
+
+@keyframes kanban-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 8px;
+  border-bottom: 1px dashed #cbd5e1;
+}
+
+.kanban-col-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.kanban-col-header h2 {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #334155;
+  flex: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.kanban-col-count {
+  background: #fff;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+}
+
+.kanban-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0;
+  min-height: 80px;
+  padding: 42px 2px 2px;
+  position: relative;
+}
+
+.kanban-add-btn {
+  font-family: 'Nunito', sans-serif;
+  background: transparent;
+  border: 1.5px dashed #cbd5e1;
+  color: #64748b;
+  border-radius: 10px;
+  padding: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.kanban-add-btn:hover {
+  background: #fff;
+  color: #6366f1;
+  border-color: #6366f1;
+}
+
+/* ===== Sticky Note ===== */
+.sticky-note {
+  position: relative;
+  background: #fef9c3;
+  border-radius: 8px;
+  padding: 12px 14px 10px;
+  cursor: grab;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s, box-shadow 0.2s, opacity 0.15s, margin 0.2s, max-height 0.2s;
+  border-top: 3px solid var(--note-accent, #6366f1);
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: -40px;
+  max-height: 65px;
+  overflow: hidden;
+}
+
+.sticky-note:first-child {
+  max-height: none;
+  margin-top: 0;
+}
+
+.sticky-note:hover {
+  transform: translateY(-8px) rotate(-0.5deg);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15), 0 3px 6px rgba(0, 0, 0, 0.08);
+  z-index: 100;
+  max-height: 500px;
+  margin-top: 10px;
+}
+
+.sticky-note.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+  transform: rotate(2deg);
+}
+
+/* Card đang đồng bộ trạng thái với server */
+.sticky-note.is-syncing {
+  pointer-events: none;
+  cursor: progress;
+  animation: sticky-pop-in 0.25s ease-out;
+}
+.sticky-note.is-syncing > *:not(.sticky-loading) {
+  filter: blur(0.6px);
+  opacity: 0.6;
+}
+
+.sticky-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 8px;
+  z-index: 3;
+  backdrop-filter: blur(1px);
+}
+
+.sticky-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid rgba(99, 102, 241, 0.25);
+  border-top-color: #6366f1;
+  animation: sticky-spin 0.7s linear infinite;
+}
+
+@keyframes sticky-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes sticky-pop-in {
+  0% { transform: scale(0.92); }
+  60% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+.sticky-note:active {
+  cursor: grabbing;
+}
+
+.sticky-note.is-done { opacity: 0.65; }
+.sticky-note.is-done .sticky-title { text-decoration: line-through; }
+
+.sticky-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.sticky-title {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #1e293b;
+  line-height: 1.3;
+  flex: 1;
+  word-break: break-word;
+}
+
+.sticky-cat {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sticky-body {
+  font-size: 0.82rem;
+  color: #334155;
+  line-height: 1.4;
+  max-height: 90px;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.sticky-body p { margin: 0 0 4px; }
+.sticky-body p:last-child { margin-bottom: 0; }
+.sticky-body ul, .sticky-body ol { margin: 0 0 4px; padding-left: 18px; }
+.sticky-body strong { font-weight: 800; }
+.sticky-body em { font-style: italic; }
+
+.sticky-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.08);
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.sticky-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.sticky-due.overdue {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.sticky-progress-wrap {
+  height: 4px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.sticky-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.sticky-prio-badge {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.sticky-prio-badge.high { background: #ef4444; }
+.sticky-prio-badge.medium { background: #f59e0b; }
+.sticky-prio-badge.low { background: #22c55e; }
+
+.kanban-empty {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  padding: 18px 8px;
+  font-style: italic;
+}
+
+/* ===== Quill Editor styling ===== */
+.quill-editor {
+  background: #fff;
+  border-radius: 0;
+}
+.quill-editor .ql-toolbar.ql-snow {
+  border: 1px solid #e2e8f0;
+  border-radius: 0;
+  background: #f8fafc;
+}
+.quill-editor .ql-container.ql-snow {
+  border: 1px solid #e2e8f0;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  min-height: 180px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.9rem;
+}
+.quill-editor .ql-editor {
+  min-height: 180px;
+}
+.quill-editor .ql-editor h1 { font-size: 1.6rem; font-weight: 800; margin: 6px 0; }
+.quill-editor .ql-editor h2 { font-size: 1.3rem; font-weight: 800; margin: 6px 0; }
+.quill-editor .ql-editor h3 { font-size: 1.1rem; font-weight: 700; margin: 4px 0; }
+.quill-editor .ql-editor blockquote {
+  border-left: 3px solid #6366f1;
+  padding-left: 10px;
+  color: #475569;
+  margin: 6px 0;
+}
+.quill-editor .ql-editor pre.ql-syntax,
+.quill-editor .ql-editor pre {
+  background: #1e293b;
+  color: #f1f5f9;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.82rem;
+  overflow-x: auto;
+}
+
+/* Detail modal description rendering */
+.task-modal-value.rich-content { line-height: 1.55; }
+.task-modal-value.rich-content p { margin: 0 0 6px; }
+.task-modal-value.rich-content ul,
+.task-modal-value.rich-content ol { margin: 0 0 6px; padding-left: 22px; }
+.task-modal-value.rich-content strong { font-weight: 800; }
+.task-modal-value.rich-content em { font-style: italic; }
+.task-modal-value.rich-content u { text-decoration: underline; }
+.task-modal-value.rich-content s { text-decoration: line-through; }
+.task-modal-value.rich-content h1 { font-size: 1.5rem; font-weight: 800; margin: 6px 0; }
+.task-modal-value.rich-content h2 { font-size: 1.25rem; font-weight: 800; margin: 6px 0; }
+.task-modal-value.rich-content h3 { font-size: 1.1rem; font-weight: 700; margin: 4px 0; }
+.task-modal-value.rich-content blockquote {
+  border-left: 3px solid #6366f1;
+  padding-left: 10px;
+  color: #475569;
+  margin: 6px 0;
+}
+.task-modal-value.rich-content pre {
+  background: #1e293b;
+  color: #f1f5f9;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.82rem;
+  overflow-x: auto;
+}
+.task-modal-value.rich-content a { color: #6366f1; text-decoration: underline; }
+.task-modal-value.rich-content .ql-align-center { text-align: center; }
+.task-modal-value.rich-content .ql-align-right { text-align: right; }
+.task-modal-value.rich-content .ql-align-justify { text-align: justify; }
+
+/* Sticky body inherits same Quill class names */
+.sticky-body .ql-align-center { text-align: center; }
+.sticky-body .ql-align-right { text-align: right; }
+.sticky-body blockquote {
+  border-left: 2px solid rgba(0,0,0,0.2);
+  padding-left: 6px;
+  margin: 2px 0;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+  .kanban-board {
+    grid-template-columns: 1fr;
+  }
+  .kanban-column {
+    max-height: none;
+  }
+}
+
+/* ===== Category select cluster trong Add Task modal ===== */
+.cat-select-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.cat-select-row select.edit-input {
+  flex: 1;
+  min-width: 0;
+}
+.cat-icon-btn {
+  width: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.cat-icon-btn:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+  background: #eef2ff;
+}
+.cat-icon-btn.primary {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+.cat-icon-btn.primary:hover {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+.cat-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ===== Category Modal ===== */
+.cat-color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cat-color-row input[type="color"] {
+  width: 44px;
+  height: 38px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 2px;
+  background: #fff;
+  cursor: pointer;
+}
+.cat-color-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cat-color-preset {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  outline: 1px solid #e2e8f0;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s;
+}
+.cat-color-preset:hover {
+  transform: scale(1.18);
+}
+.cat-color-preset.active {
+  outline: 2px solid #1e293b;
+  outline-offset: 1px;
+}
+
+/* ===== Task color palette (10 swatches) ===== */
+.task-color-palette {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.task-color-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.task-color-swatch:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+.task-color-swatch.active {
+  border-color: #1e293b;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.2);
+}

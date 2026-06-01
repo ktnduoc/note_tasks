@@ -10,7 +10,7 @@
   let configLoaded = false;
 
   // Model switching: đã test - chỉ giữ model hoạt động
-  let currentModelType = 'gemma31b'; // Mặc định Gemma (free, ổn định)
+  let currentModelType = 'gptoss'; // Mặc định GPT-OSS Free, fallback OSS Cerebras
   let kimiApiKey = ''; // Sẽ load từ server (OpenRouter key)
   const modelConfigs = {
     oss: {
@@ -113,7 +113,7 @@
   const statusText = document.getElementById('bot-header-status');
   const bubble = document.getElementById('bot-message-bubble');
 
-  const welcome = 'Xin chào! Tôi là trợ lý NoteTasks. Tôi giúp bạn **tạo task, quản lý danh mục, xem công việc theo ngày**. Hãy thử click nút bên dưới hoặc gõ câu hỏi nhé!';
+  const welcome = 'Chào dev! Tôi là trợ lý NoteTasks, giúp bạn **tạo task lập trình, sắp xếp board Kanban, theo dõi tiến độ** mỗi ngày. Cứ mô tả ngắn gọn ("fix bug X", "refactor module Y", "review PR #45") là tôi tạo task ngay.';
 
   const chatbotThemes = {
     blue: {
@@ -218,7 +218,11 @@
       : 'User chưa đăng nhập. Khi user yêu cầu tạo/sửa/xóa: từ chối và hướng dẫn gõ /login. Khi user hỏi/tìm kiếm/xem/thống kê: VẪN XỬ LÝ BÌNH THƯỜNG, gọi query_db hoặc list_tasks hoặc get_task_stats. Nếu không rõ user muốn tạo hay tìm, MẶC ĐỊNH là TÌM KIẾM.';
 
     return [
-      'Bạn là trợ lý AI cho ứng dụng NoteTasks - app quản lý công việc theo danh mục ngày & lý do.',
+      'Bạn là trợ lý AI cho ứng dụng NoteTasks - app quản lý công việc dạng board Kanban (Cần làm / Đang làm / Hoàn thành), task hiển thị như sticky note có nội dung rich-text.',
+      'NGƯỜI DÙNG LÀ LẬP TRÌNH VIÊN: dùng NoteTasks để quản lý task lập trình hàng ngày (bug fix, tính năng, refactor, review code, deploy, học công nghệ mới...). Hãy nói chuyện đúng kiểu đồng nghiệp dev: ngắn, thẳng, dùng thuật ngữ kỹ thuật bình thường, KHÔNG giải thích kiến thức cơ bản trừ khi được hỏi.',
+      'Khi gợi ý tên/mô tả task, ưu tiên framing kỹ thuật: tên task ngắn gọn dạng imperative ("Fix bug X", "Refactor module Y", "Viết test cho Z"); description có thể chứa repo/branch, lệnh cần chạy, link PR/issue, code snippet (dùng <pre><code>...</code></pre> trong description vì nó là Quill rich-text).',
+      'Khi user mô tả task bằng ngôn ngữ dev (ví dụ: "fix N+1 query ở /users endpoint", "bump nodejs lên 22", "merge PR #45"), TỰ HIỂU và tạo task ngay, không hỏi lại nghĩa.',
+      'Mức ưu tiên (priority) suy luận từ ngữ cảnh dev: hotfix/prod down/security → high; feature mới/refactor → medium; chore/cleanup/doc → low.',
       authStatus,
       authInstruction,
       'Luôn trả lời bằng tiếng Việt.',
@@ -230,22 +234,24 @@
       'Câu trả lời ban đầu nên ngắn, thân thiện, cho user biết bạn đang xử lý.',
       getThemeInstruction(),
       'Khi người dùng muốn tạo một task kèm một danh mục mới trong cùng câu lệnh: GỌI create_task_with_category, không tách thành 2 bước.',
-      'Khi người dùng muốn tạo nhiều task trong cùng một câu: GỌI create_many_tasks một lần. Nếu thiếu lý do chung hoặc lý do riêng, hỏi thêm trước khi tạo.',
+      'Khi người dùng muốn tạo nhiều task trong cùng một câu: GỌI create_many_tasks một lần. KHÔNG hỏi lại reason/lý do — trường này đã bỏ.',
       'Khi tạo task: GỌI create_task. Tên danh mục không cần chính xác 100%, hệ thống sẽ tự tìm gần đúng.',
       'Khi cần danh mục: GỌI create_category / update_category / delete_category.',
       'Khi xem task: GỌI list_tasks.',
       'Khi người dùng nói "đánh dấu xong 5 task đầu" thì GỌI update_tasks_status với completed=true, count=5, startIndex=1. Không hỏi lại tên task.',
       'Khi người dùng muốn đánh dấu xong/chưa xong task, đặc biệt như "5 task đầu", "3 task đầu tiên", "tất cả task": GỌI update_tasks_status.',
-              'Khi người dùng nói "xoá tất cả các task hôm nay" thì GỌI delete_tasks với all=true và date là ngày hôm nay. Không đề xuất xoá danh mục.',
-      'Khi người dùng muốn sửa tên/lý do 1 task: BẢO họ dùng lệnh "/edit #mã-task Tên mới | Lý do mới". KHÔNG nói "API không hỗ trợ sửa task".',
-      'Khi người dùng muốn cập nhật TIẾN ĐỘ 1 task: GỌI update_task_progress với taskId (nếu đã biết từ kết quả trước) hoặc taskName. Nếu không rõ task nào, hỏi lại tên hoặc mã task.',
+      'Khi người dùng nói "xoá tất cả các task hôm nay" thì GỌI delete_tasks với all=true và date là ngày hôm nay. Không đề xuất xoá danh mục.',
+      'Khi người dùng muốn sửa tên task: BẢO họ dùng lệnh "/edit #mã-task Tên mới". KHÔNG nói "API không hỗ trợ sửa task".',
+      'Khi người dùng muốn cập nhật TIẾN ĐỘ 1 task: GỌI update_task_progress với taskId (nếu đã biết từ kết quả trước) hoặc taskName. Tiến độ 0% = "Cần làm", 1-99% = "Đang làm", 100% = "Hoàn thành". Nếu không rõ task nào, hỏi lại tên hoặc mã task.',
       'Khi người dùng muốn xoá 1 task cụ thể: BẢO họ dùng lệnh "/del #mã-task".',
       'Khi người dùng muốn xoá task, xoá tất cả task hôm nay, xoá N task đầu, hoặc xoá task theo tên/danh mục: GỌI delete_tasks. Không nói rằng hệ thống chỉ xoá được danh mục.',
       'Khi người dùng muốn phục hồi/khôi phục task vừa xoá: GỌI restore_deleted_tasks. Khi muốn phục hồi task đã xoá từ trước (không phải phiên hiện tại): GỌI restore_deleted_task với tên hoặc ID task. Nếu không rõ tên, GỌI query_db với includeDeleted=true để xem danh sách task đã xoá trước.',
       'Khi hỏi thống kê/tổng số/bao nhiêu task/đã xong/chưa xong/theo ưu tiên/theo danh mục: GỌI get_task_stats. Tool này trả về CẢ thống kê VÀ danh sách chi tiết từng task.',
       'Nếu thiếu thông tin, hỏi lại. Nếu không tìm thấy danh mục, gợi ý danh sách có sẵn.',
-      'API tạo task có các trường: name (tên, bắt buộc), reason (lý do, optional), description (mô tả chi tiết, optional), categoryName, date, priority.',
-      'Lý do (reason) và mô tả chi tiết (description) đều KHÔNG bắt buộc. Nếu user không nói thì có thể bỏ qua.',
+      'Lệnh /model: đổi model AI. Gõ "/model" để xem danh sách, "/model <tên>" để chuyển (VD: /model kimi, /model gemma31b). Lệnh này KHÔNG phải tool — xử lý trực tiếp bởi frontend.',
+      'API tạo task có các trường: name (tên, bắt buộc), description (mô tả chi tiết, optional, hỗ trợ HTML rich-text), categoryName, date, priority, progress, dueDate. Trường "reason" ĐÃ BỊ BỎ — không gửi, không hỏi lại.',
+      'Mô tả chi tiết (description) là HTML do thư viện Quill sinh ra. Khi tạo/sửa task qua chatbot, có thể truyền HTML thẻ <strong>, <em>, <u>, <s>, <h1>-<h3>, <ul>/<ol>/<li>, <blockquote>, <pre><code>, <a>, <p>, <br>, <span style="color:..."> để giữ định dạng. Nếu user chỉ nói plain text thì truyền string thường cũng được.',
+      'Mô tả không bắt buộc. Nếu user không nói thì để trống, KHÔNG hỏi thêm.',
       'Khi người dùng muốn tạo nhiều task trong cùng một câu: GỌI create_many_tasks một lần, không gọi create_task lặp lại.',
       'Khi cập nhật nhiều task theo thứ tự, hiểu "task đầu" là các task đầu trong danh sách hiện tại sau khi lọc theo ngày/danh mục nếu có.',
       'Khi xoá nhiều task theo thứ tự, hiểu "task đầu" là các task đầu trong danh sách hiện tại sau khi lọc theo ngày/danh mục nếu có.',
@@ -711,7 +717,7 @@
         const taskItems = rawTasks
           .map(task => ({
             name: task.name || task.taskName,
-            reason: task.reason || params.reason || '',
+            description: task.description || params.description || '',
             categoryName: task.categoryName || params.defaultCategoryName || params.categoryName,
             date: task.date || params.date,
             priority: task.priority || params.priority || 'medium',
@@ -721,19 +727,6 @@
 
         if (!taskItems.length) {
           return { success: false, message: 'Bạn muốn tạo những task nào? Hãy gửi giúp mình danh sách tên task.' };
-        }
-
-        const missingReasonTasks = taskItems.filter(task => !task.reason?.trim());
-        if (missingReasonTasks.length) {
-          pendingAction = {
-            type: actionType,
-            params: { ...params, tasks: taskItems },
-          };
-          const names = missingReasonTasks.map(task => `**"${task.name}"**`).join(', ');
-          return {
-            success: false,
-            message: `Mình cần thêm **lý do** cho ${missingReasonTasks.length} task: ${names}. Bạn muốn dùng lý do gì?`,
-          };
         }
 
         const createdTasks = [];
@@ -753,7 +746,7 @@
 
           const created = await createTask({
             name: task.name,
-            reason: task.reason,
+            description: task.description || '',
             category: categoryId,
             date,
             priority: task.priority || 'medium',
@@ -769,14 +762,6 @@
       }
 
       if (actionType === 'create_task_with_category') {
-        if (!params.reason?.trim()) {
-          pendingAction = { type: actionType, params };
-          return {
-            success: false,
-            message: `Mình cần thêm **lý do** cho task **"${params.taskName}"** trong danh mục **"${params.categoryName}"**. Bạn muốn ghi lý do là gì?`,
-          };
-        }
-
         const date = params.date || new Date().toISOString();
         const cat = await createCategory({
           name: params.categoryName,
@@ -790,7 +775,7 @@
 
         const task = await createTask({
           name: params.taskName,
-          reason: params.reason || '',
+          description: params.description || '',
           category: cat._id,
           date,
           priority: params.priority || 'medium',
@@ -812,7 +797,6 @@
 
         const task = await createTask({
           name: params.name,
-          reason: params.reason || '',
           description: params.description || '',
           category: catId,
           date: params.date || new Date().toISOString(),
@@ -905,7 +889,7 @@
 
         deletedTaskSnapshots = selection.tasks.map(task => ({
           name: task.name,
-          reason: task.reason || '',
+          description: task.description || '',
           categoryName: task.category?.name || '',
           categoryId: task.category?._id || task.category || '',
           date: task.date,
@@ -952,7 +936,7 @@
 
           const restored = await createTask({
             name: snapshot.name,
-            reason: snapshot.reason || 'Khôi phục từ task đã xoá',
+            description: snapshot.description || '',
             category: categoryId,
             date: snapshot.date || new Date().toISOString(),
             priority: snapshot.priority || 'medium',
@@ -1188,16 +1172,13 @@
     const current = pendingAction;
     pendingAction = null;
 
-    const reason = userText.trim();
-    if (!reason) {
+    const text = userText.trim();
+    if (!text) {
       pendingAction = current;
-      const message = 'Bạn nhập giúp mình lý do cho task này nhé.';
-      setBotMessageContent(targetBubble, message);
-      pushHistory('assistant', message);
-      return true;
+      return false;
     }
 
-    const nextParams = { ...current.params, reason };
+    const nextParams = { ...current.params };
     const result = await executeBotAction(current.type, nextParams);
     const message = result.message || 'Đã tiếp tục tác vụ.';
     setBotMessageContent(targetBubble, message);
@@ -1453,7 +1434,7 @@
           properties: {
             defaultCategoryName: { type: 'string', description: 'Tên danh mục dùng chung cho các task nếu task không có categoryName riêng' },
             categoryName: { type: 'string', description: 'Alias của defaultCategoryName, tên danh mục dùng chung' },
-            reason: { type: 'string', description: 'Lý do dùng chung cho các task nếu từng task không có reason riêng. Bắt buộc theo API; nếu thiếu thì hỏi thêm.' },
+            description: { type: 'string', description: 'Mô tả chi tiết dùng chung (optional, hỗ trợ HTML rich-text từ Quill: <strong>, <em>, <u>, <h1>-<h3>, <ul>/<ol>, <blockquote>, <pre>, <a>, <span style="color:..."> ...)' },
             date: { type: 'string', description: 'Ngày dùng chung cho các task (YYYY-MM-DD), mặc định hôm nay' },
             priority: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Mức ưu tiên dùng chung, mặc định medium' },
             color: { type: 'string', description: 'Màu hex khi cần tạo danh mục mới' },
@@ -1464,7 +1445,7 @@
                 type: 'object',
                 properties: {
                   name: { type: 'string', description: 'Tên task' },
-                  reason: { type: 'string', description: 'Lý do riêng của task. Nếu thiếu sẽ dùng reason chung hoặc hỏi thêm.' },
+                  description: { type: 'string', description: 'Mô tả chi tiết riêng của task (optional, HTML rich-text)' },
                   categoryName: { type: 'string', description: 'Danh mục riêng của task nếu khác danh mục chung' },
                   date: { type: 'string', description: 'Ngày riêng của task (YYYY-MM-DD)' },
                   priority: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Mức ưu tiên riêng của task' },
@@ -1487,7 +1468,7 @@
           properties: {
             categoryName: { type: 'string', description: 'Tên danh mục mới cần tạo' },
             taskName: { type: 'string', description: 'Tên task mới cần tạo trong danh mục mới' },
-            reason: { type: 'string', description: 'Lý do / mô tả cho task. Bắt buộc theo API; nếu người dùng chưa cung cấp thì hỏi thêm.' },
+            description: { type: 'string', description: 'Mô tả chi tiết cho task (optional, HTML rich-text từ Quill)' },
             date: { type: 'string', description: 'Ngày của danh mục và task (YYYY-MM-DD), mặc định hôm nay' },
             priority: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Mức ưu tiên của task' },
             color: { type: 'string', description: 'Mã màu hex cho danh mục mới, mặc định #6366f1' },
@@ -1501,13 +1482,12 @@
       type: 'function',
       function: {
         name: 'create_task',
-        description: 'Tạo task mới. Gọi NGAY khi user muốn thêm task, KHÔNG hỏi lại reason/description vì chúng optional.',
+        description: 'Tạo task mới. Gọi NGAY khi user muốn thêm task, KHÔNG hỏi lại description vì nó optional. Trường reason đã bị bỏ, đừng truyền.',
         parameters: {
           type: 'object',
           properties: {
             name: { type: 'string', description: 'Tên task (bắt buộc)' },
-            reason: { type: 'string', description: 'Lý do (optional)' },
-            description: { type: 'string', description: 'Mô tả chi tiết (optional)' },
+            description: { type: 'string', description: 'Mô tả chi tiết (optional). Hỗ trợ HTML rich-text từ Quill: <strong>, <em>, <u>, <s>, <h1>-<h3>, <ul>/<ol>/<li>, <blockquote>, <pre><code>, <a>, <p>, <br>, <span style="color:#hex"> để giữ định dạng. Có thể dùng plain text nếu user không yêu cầu định dạng.' },
             categoryName: { type: 'string', description: 'Tên danh mục' },
             date: { type: 'string', description: 'Ngày (YYYY-MM-DD)' },
             priority: { type: 'string', enum: ['low', 'medium', 'high'] },
@@ -1729,6 +1709,14 @@
     const config = modelConfigs[currentModelType];
     const keys = config.getKeys();
 
+    // Fallback: nếu OpenRouter không có key → dùng OSS Cerebras
+    if (!keys.length && config.apiBase.includes('openrouter')) {
+      currentModelType = 'oss';
+      const fbConfig = modelConfigs.oss;
+      setBotMessageContent(targetBubble, `⚠️ Không có key OpenRouter, chuyển sang **${fbConfig.name}**...`);
+      return await callCerebras(prompt, targetBubble);
+    }
+
     if (!keys.length) {
       throw new Error(`Chưa có API key cho ${config.name}. Kiểm tra file .env.`);
     }
@@ -1768,7 +1756,7 @@
         });
 
         if (streamRes.status === 429) {
-          lastError = new Error(`${config.name} bị rate limit, đang thử lại...`);
+          lastError = new Error(`${config.name} bị rate limit. Gõ **/model** để đổi model khác.`);
           await new Promise(resolve => setTimeout(resolve, 1000));
           continue;
         }
@@ -1791,7 +1779,7 @@
       }
     }
 
-    throw lastError || new Error(`Tất cả API key ${config.name} đều không khả dụng.`);
+    throw lastError || new Error(`${config.name} không khả dụng. Gõ **/model** để đổi model khác.`);
   }
 
   async function sendMessage() {
@@ -1948,7 +1936,7 @@
       return true;
     }
 
-    // /edit #ID name | reason hoặc "sửa task ID thành name" hoặc "sửa task ID name | reason"
+    // /edit #ID Tên mới   (chỉ sửa tên task; mô tả rich-text dùng modal Edit trên UI)
     const editMatch = t.match(/(?:\/edit|sửa\s+task)\s+(#?)([a-f0-9]{6,24})\s+(?:th[àa]nh\s+)?(.+)$/i);
     if (editMatch) {
       const shortId = editMatch[2];
@@ -1958,14 +1946,15 @@
         setBotMessageContent(targetBubble, `Không tìm thấy task với mã #${shortId}.`);
         return true;
       }
-      const parts = rest.split('|').map(s => s.trim());
-      const updates = {};
-      if (parts[0]) updates.name = parts[0];
-      if (parts[1]) updates.reason = parts[1];
+      const newName = rest.split('|')[0].trim();
+      if (!newName) {
+        setBotMessageContent(targetBubble, 'Bạn cần ghi tên mới sau mã task. Ví dụ: `/edit #abc123 Tên mới`.');
+        return true;
+      }
       try {
-        await updateTask(task._id, updates);
+        await updateTask(task._id, { name: newName });
         if (typeof loadAll === 'function') await loadAll();
-        setBotMessageContent(targetBubble, `[OK] Đã sửa task thành **"${updates.name || task.name}"**.`);
+        setBotMessageContent(targetBubble, `[OK] Đã đổi tên task thành **"${newName}"**.`);
       } catch (err) {
         setBotMessageContent(targetBubble, `Lỗi: ${err.message}`);
       }
@@ -2443,7 +2432,74 @@
     }
   });
   uploadBtn?.addEventListener('click', (e) => { e.preventDefault(); showToast('Chức năng đang phát triển.'); });
+  // ===== Gợi ý lệnh khi gõ / =====
+  const commands = [
+    { cmd: '/model', desc: 'Chuyển đổi model AI', usage: '/model' },
+    { cmd: '/add', desc: 'Thêm task mới', usage: '/add' },
+    { cmd: '/del', desc: 'Xoá task theo mã', usage: '/del #abc123' },
+    { cmd: '/edit', desc: 'Sửa tên task', usage: '/edit #abc123 Tên mới' },
+    { cmd: '/progress', desc: 'Cập nhật tiến độ', usage: '/progress #abc123 80' },
+    { cmd: '/logout', desc: 'Đăng xuất', usage: '/logout' },
+  ];
+
+  const cmdSuggest = document.createElement('div');
+  cmdSuggest.id = 'bot-cmd-suggest';
+  cmdSuggest.style.cssText = 'display:none;position:absolute;bottom:100%;left:0;right:0;background:#1e293b;border:1px solid #334155;border-radius:10px;margin-bottom:6px;overflow:hidden;z-index:100;box-shadow:0 -4px 12px rgba(0,0,0,0.3);';
+  input?.parentNode?.insertBefore(cmdSuggest, input);
+
+  function showCmdSuggest(filter) {
+    const q = (filter || '').toLowerCase();
+    const matches = commands.filter(c => c.cmd.includes(q));
+    if (!matches.length) { cmdSuggest.style.display = 'none'; return; }
+
+    cmdSuggest.innerHTML = matches.map(c => `
+      <div class="cmd-item" data-cmd="${c.cmd}" style="padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid #1e293b;transition:background 0.15s;">
+        <span style="color:#6c8ebf;font-weight:600;min-width:80px;">${c.cmd}</span>
+        <span style="color:#94a3b8;font-size:13px;">${c.desc}</span>
+        <span style="color:#475569;font-size:11px;margin-left:auto;">${c.usage}</span>
+      </div>
+    `).join('');
+    cmdSuggest.style.display = 'block';
+
+    // Click chọn lệnh
+    cmdSuggest.querySelectorAll('.cmd-item').forEach(item => {
+      item.addEventListener('click', () => {
+        input.value = item.dataset.cmd + ' ';
+        input.focus();
+        cmdSuggest.style.display = 'none';
+      });
+      item.addEventListener('mouseenter', () => { item.style.background = '#334155'; });
+      item.addEventListener('mouseleave', () => { item.style.background = ''; });
+    });
+  }
+
+  input?.addEventListener('input', () => {
+    const val = input.value;
+    if (val.startsWith('/') && !val.includes(' ')) {
+      showCmdSuggest(val);
+    } else {
+      cmdSuggest.style.display = 'none';
+    }
+  });
+
+  // Ẩn gợi ý khi click ra ngoài
+  document.addEventListener('click', (e) => {
+    if (!cmdSuggest.contains(e.target) && e.target !== input) {
+      cmdSuggest.style.display = 'none';
+    }
+  });
+
+  // Tab để chọn lệnh đầu tiên
   input?.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' && cmdSuggest.style.display === 'block') {
+      e.preventDefault();
+      const first = cmdSuggest.querySelector('.cmd-item');
+      if (first) {
+        input.value = first.dataset.cmd + ' ';
+        input.focus();
+        cmdSuggest.style.display = 'none';
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
 

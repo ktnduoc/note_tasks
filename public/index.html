@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="auth-ui.css">
   <link rel="stylesheet" href="task-modal.css">
   <link rel="stylesheet" href="chatbot-ui.css">
+  <link rel="stylesheet" href="kanban.css">
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 </head>
 <body>
   <!-- Auth Bar -->
@@ -95,10 +97,6 @@
         </button>
       </div>
       <div class="task-modal-body">
-        <div class="task-modal-section">
-          <label class="task-modal-label">Lý do</label>
-          <div class="task-modal-value" id="taskModalReason"></div>
-        </div>
         <div class="task-modal-section" id="taskModalDescSection">
           <label class="task-modal-label">Mô tả chi tiết</label>
           <div class="task-description-box">
@@ -150,16 +148,28 @@
           <input type="text" id="editTaskName" class="edit-input">
         </div>
         <div class="edit-form-group">
-          <label>Lý do</label>
-          <input type="text" id="editTaskReason" class="edit-input">
+          <label>Mô tả chi tiết</label>
+          <div id="editTaskDescEditor" class="quill-editor"></div>
         </div>
         <div class="edit-form-group">
-          <label>Mô tả chi tiết</label>
-          <textarea id="editTaskDesc" class="edit-input" rows="3" placeholder="Nhập mô tả chi tiết..."></textarea>
+          <label>Màu task (tuỳ chọn)</label>
+          <div class="task-color-palette">
+            <button type="button" class="task-color-swatch" data-color="#fef9c3" style="background:#fef9c3" title="Vàng"></button>
+            <button type="button" class="task-color-swatch" data-color="#fee2e2" style="background:#fee2e2" title="Đỏ nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#dcfce7" style="background:#dcfce7" title="Xanh lá nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#dbeafe" style="background:#dbeafe" title="Xanh dương nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#e0e7ff" style="background:#e0e7ff" title="Indigo nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#fae8ff" style="background:#fae8ff" title="Tím nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#fce7f3" style="background:#fce7f3" title="Hồng nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#fff7ed" style="background:#fff7ed" title="Cam nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#f1f5f9" style="background:#f1f5f9" title="Xám nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#ffffff" style="background:#ffffff;border:1px solid #e2e8f0" title="Trắng"></button>
+            <button type="button" class="btn btn-xs" id="editTaskColorReset" style="margin-left:8px">Mặc định</button>
+          </div>
+          <input type="hidden" id="editTaskColorValue">
         </div>
         <div class="edit-form-row">
           <div class="edit-form-group">
-            <label>Tiến độ (%)</label>
             <label>Tiến độ (<span id="editProgressLabel">0</span>%)</label>
             <input type="range" id="editTaskProgress" class="edit-range" min="0" max="100" oninput="document.getElementById('editProgressLabel').textContent=this.value">
           </div>
@@ -170,6 +180,7 @@
         </div>
       </div>
       <div class="task-modal-footer">
+        <button class="btn btn-sm btn-danger" id="editTaskDelete" style="margin-right:auto">Xoá task</button>
         <button class="btn btn-sm btn-primary" id="editTaskSave">Lưu</button>
         <button class="btn btn-sm btn-ghost" id="editTaskCancel">Huỷ</button>
       </div>
@@ -187,10 +198,36 @@
       </div>
       <div class="task-modal-body">
         <div class="edit-form-group"><label>Tên task *</label><input type="text" id="addTaskName" class="edit-input" placeholder="Nhập tên task"></div>
-        <div class="edit-form-group"><label>Lý do</label><input type="text" id="addTaskReason" class="edit-input" placeholder="Lý do tạo task"></div>
-        <div class="edit-form-group"><label>Mô tả chi tiết</label><textarea id="addTaskDesc" class="edit-input" rows="3" placeholder="Mô tả chi tiết..."></textarea></div>
+        <div class="edit-form-group"><label>Mô tả chi tiết</label><div id="addTaskDescEditor" class="quill-editor"></div></div>
+        <div class="edit-form-group">
+          <label>Màu task (tuỳ chọn)</label>
+          <div class="task-color-palette">
+            <button type="button" class="task-color-swatch" data-color="#fef9c3" style="background:#fef9c3" title="Vàng"></button>
+            <button type="button" class="task-color-swatch" data-color="#fee2e2" style="background:#fee2e2" title="Đỏ nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#dcfce7" style="background:#dcfce7" title="Xanh lá nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#dbeafe" style="background:#dbeafe" title="Xanh dương nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#e0e7ff" style="background:#e0e7ff" title="Indigo nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#fae8ff" style="background:#fae8ff" title="Tím nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#fce7f3" style="background:#fce7f3" title="Hồng nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#fff7ed" style="background:#fff7ed" title="Cam nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#f1f5f9" style="background:#f1f5f9" title="Xám nhạt"></button>
+            <button type="button" class="task-color-swatch" data-color="#ffffff" style="background:#ffffff;border:1px solid #e2e8f0" title="Trắng"></button>
+            <button type="button" class="btn btn-xs" id="addTaskColorReset" style="margin-left:8px">Mặc định</button>
+          </div>
+          <input type="hidden" id="addTaskColorValue">
+        </div>
         <div class="edit-form-row">
-          <div class="edit-form-group"><label>Danh mục *</label><select id="addTaskCategory" class="edit-input"></select></div>
+          <div class="edit-form-group"><label>Danh mục *</label>
+            <div class="cat-select-row">
+              <select id="addTaskCategory" class="edit-input"></select>
+              <button type="button" class="cat-icon-btn" id="btnEditCategory" title="Sửa danh mục đang chọn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button type="button" class="cat-icon-btn primary" id="btnAddCategory" title="Thêm danh mục mới">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+            </div>
+          </div>
           <div class="edit-form-group"><label>Ưu tiên</label><select id="addTaskPriority" class="edit-input"><option value="medium">Vừa</option><option value="low">Thấp</option><option value="high">Cao</option></select></div>
         </div>
         <div class="edit-form-row">
@@ -202,6 +239,46 @@
       <div class="task-modal-footer">
         <button class="btn btn-sm btn-primary" id="addTaskSave">Thêm task</button>
         <button class="btn btn-sm btn-ghost" id="addTaskCancel">Huỷ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Modal (Add / Edit) -->
+  <div id="categoryModal" class="task-modal-overlay">
+    <div class="task-modal" style="max-width:420px">
+      <div class="task-modal-header">
+        <h2 id="categoryModalTitle">Thêm danh mục</h2>
+        <button class="task-modal-close" id="categoryModalClose">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="task-modal-body">
+        <div class="edit-form-group">
+          <label>Tên danh mục *</label>
+          <input type="text" id="categoryModalName" class="edit-input" placeholder="VD: Frontend, Bug fix, Refactor...">
+        </div>
+        <div class="edit-form-group">
+          <label>Màu danh mục</label>
+          <div class="cat-color-row">
+            <input type="color" id="categoryModalColor" value="#6366f1">
+            <input type="text" id="categoryModalColorHex" class="edit-input" value="#6366f1" maxlength="7" style="max-width:120px">
+            <div class="cat-color-presets">
+              <button type="button" class="cat-color-preset" data-color="#6366f1" style="background:#6366f1"></button>
+              <button type="button" class="cat-color-preset" data-color="#ef4444" style="background:#ef4444"></button>
+              <button type="button" class="cat-color-preset" data-color="#f59e0b" style="background:#f59e0b"></button>
+              <button type="button" class="cat-color-preset" data-color="#22c55e" style="background:#22c55e"></button>
+              <button type="button" class="cat-color-preset" data-color="#06b6d4" style="background:#06b6d4"></button>
+              <button type="button" class="cat-color-preset" data-color="#a855f7" style="background:#a855f7"></button>
+              <button type="button" class="cat-color-preset" data-color="#ec4899" style="background:#ec4899"></button>
+              <button type="button" class="cat-color-preset" data-color="#64748b" style="background:#64748b"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="task-modal-footer">
+        <button class="btn btn-sm btn-danger" id="categoryModalDelete" style="margin-right:auto;display:none">Xoá</button>
+        <button class="btn btn-sm btn-primary" id="categoryModalSave">Lưu</button>
+        <button class="btn btn-sm btn-ghost" id="categoryModalCancel">Huỷ</button>
       </div>
     </div>
   </div>
@@ -236,21 +313,44 @@
       </div>
     </section>
 
-    <!-- Main Content -->
-    <main class="main-grid">
-      <!-- Cột Tasks full width -->
-      <section class="col-tasks">
-        <div class="section-header">
-          <h2><svg style="width:18px;height:18px;vertical-align:-3px;margin-right:4px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Danh sách Task</h2>
-        </div>
-        <div id="taskList" class="list"></div>
-      </section>
+    <!-- Main Content - Kanban Board -->
+    <main class="kanban-main">
+      <div class="kanban-board" id="kanbanBoard">
+        <section class="kanban-column" data-status="todo" data-min="0" data-max="0">
+          <header class="kanban-col-header">
+            <span class="kanban-col-dot" style="background:#ef4444"></span>
+            <h2>Cần làm</h2>
+            <span class="kanban-col-count" id="countTodo">0</span>
+          </header>
+          <div class="kanban-list" data-status="todo"></div>
+          <button class="kanban-add-btn" data-status="todo">+ Thêm task</button>
+        </section>
+        <section class="kanban-column" data-status="doing" data-min="1" data-max="99">
+          <header class="kanban-col-header">
+            <span class="kanban-col-dot" style="background:#f59e0b"></span>
+            <h2>Đang làm</h2>
+            <span class="kanban-col-count" id="countDoing">0</span>
+          </header>
+          <div class="kanban-list" data-status="doing"></div>
+          <button class="kanban-add-btn" data-status="doing">+ Thêm task</button>
+        </section>
+        <section class="kanban-column" data-status="done" data-min="100" data-max="100">
+          <header class="kanban-col-header">
+            <span class="kanban-col-dot" style="background:#22c55e"></span>
+            <h2>Hoàn thành</h2>
+            <span class="kanban-col-count" id="countDone">0</span>
+          </header>
+          <div class="kanban-list" data-status="done"></div>
+          <button class="kanban-add-btn" data-status="done">+ Thêm task</button>
+        </section>
+      </div>
     </main>
 
     <!-- Toast -->
     <div id="toast" class="toast hidden"></div>
   </div>
 
+  <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
   <script src="app.js"></script>
 
   <!-- ===== Chatbot Widget ===== -->
@@ -309,7 +409,7 @@
       </div>
       <div class="chat-messages" id="bot-messages-container" style="display:flex;">
         <div class="message-container bot-msg-container">
-          <div class="message bot">Xin chào! Tôi là trợ lý NoteTasks. Tôi giúp bạn <strong>tạo task, quản lý danh mục, xem công việc theo ngày</strong>. Hãy thử click nút bên dưới hoặc gõ câu hỏi nhé!</div>
+          <div class="message bot">Chào dev! Tôi là trợ lý NoteTasks, giúp bạn <strong>tạo task lập trình, sắp xếp board Kanban, theo dõi tiến độ</strong> mỗi ngày. Cứ mô tả ngắn gọn ("fix bug X", "refactor module Y", "review PR #45") là tôi tạo task ngay.</div>
         </div>
       </div>
       <div id="bot-toast-stack" role="status" aria-live="polite"></div>

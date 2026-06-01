@@ -352,80 +352,197 @@ function renderCategories() {
 }
 
 function renderTasks() {
-  const container = document.getElementById('taskList');
-  if (!tasks.length) {
-    container.innerHTML = `<div class="empty-state"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg><p>Chưa có task nào</p></div>`;
-    return;
+  renderBoard();
+}
+
+// ===== Kanban Board =====
+function statusFromProgress(progress) {
+  const p = Number(progress) || 0;
+  if (p >= 100) return 'done';
+  if (p > 0) return 'doing';
+  return 'todo';
+}
+
+function progressFromStatus(status, currentProgress) {
+  if (status === 'done') return 100;
+  if (status === 'todo') return 0;
+  const p = Number(currentProgress) || 0;
+  return (p > 0 && p < 100) ? p : 50;
+}
+
+function stripHtmlPlain(html) {
+  if (!html) return '';
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div.textContent || div.innerText || '';
+}
+
+function isHtmlContent(str) {
+  return typeof str === 'string' && /<\/?[a-z][\s\S]*>/i.test(str);
+}
+
+function renderBoard() {
+  const lists = {
+    todo: document.querySelector('.kanban-list[data-status="todo"]'),
+    doing: document.querySelector('.kanban-list[data-status="doing"]'),
+    done: document.querySelector('.kanban-list[data-status="done"]'),
+  };
+  if (!lists.todo) return;
+
+  const buckets = { todo: [], doing: [], done: [] };
+  tasks.forEach(t => {
+    const s = statusFromProgress(t.progress);
+    buckets[s].push(t);
+  });
+
+  Object.keys(lists).forEach(s => {
+    lists[s].innerHTML = buckets[s].length
+      ? buckets[s].map(t => stickyNoteHtml(t)).join('')
+      : `<div class="kanban-empty">Kéo task vào đây</div>`;
+  });
+
+  document.getElementById('countTodo').textContent = buckets.todo.length;
+  document.getElementById('countDoing').textContent = buckets.doing.length;
+  document.getElementById('countDone').textContent = buckets.done.length;
+
+  bindStickyEvents();
+}
+
+function stickyNoteHtml(t) {
+  const catColor = t.category?.color || '#6366f1';
+  const catName = escapeHtml(t.category?.name || 'Không có');
+  const prio = t.priority || 'medium';
+  const draggable = canWrite() ? 'draggable="true"' : '';
+  const isDone = (t.progress || 0) >= 100 || t.completed;
+
+  // Màu sticky note: ưu tiên task.color, fallback theo priority
+  let bgColor = t.color || '';
+  if (!bgColor) {
+    if (prio === 'high') bgColor = '#fee2e2';
+    else if (prio === 'low') bgColor = '#dcfce7';
+    else bgColor = '#fef9c3';
   }
 
-  const editIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
-  const trashIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>';
-  const viewIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+  let bodyHtml = '';
+  if (t.description) {
+    if (isHtmlContent(t.description)) {
+      bodyHtml = `<div class="sticky-body">${t.description}</div>`;
+    } else {
+      bodyHtml = `<div class="sticky-body">${escapeHtml(t.description).replace(/\n/g, '<br>')}</div>`;
+    }
+  }
 
-  const priorityBadge = {
-    high: '<span class="badge badge-high">Cao</span>',
-    medium: '<span class="badge badge-medium">Vừa</span>',
-    low: '<span class="badge badge-low">Thấp</span>',
-  };
+  const dueLabel = t.dueDate ? formatDate(t.dueDate) : '';
+  const overdueClass = (t.dueDate && isOverdue(t.dueDate) && !isDone) ? 'overdue' : '';
+  const dueHtml = dueLabel
+    ? `<span class="sticky-due ${overdueClass}">📅 ${dueLabel}</span>`
+    : '<span class="sticky-due"></span>';
 
-  const rows = tasks.map(t => {
-    const catName = t.category?.name || '';
-    const catColor = t.category?.color || '#6366f1';
-    const doneClass = t.completed ? 'row-done' : '';
-    const checkedAttr = t.completed ? 'checked' : '';
-    const dateLabel = formatDate(t.date);
-    const progress = t.progress || 0;
-    const dueDate = t.dueDate ? formatDate(t.dueDate) : '—';
-    const dueDateClass = (t.dueDate && isOverdue(t.dueDate) && !t.completed) ? 'overdue' : '';
+  const progress = Number(t.progress) || 0;
 
-    const progressBar = `
-      <div style="display:flex;align-items:center;min-width:80px;" title="${progress}%">
-        <div style="flex:1;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;">
-          <div style="height:100%;width:${progress}%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:3px;transition:width 0.3s;"></div>
-        </div>
+  return `
+    <article class="sticky-note ${isDone ? 'is-done' : ''}"
+             style="--note-accent:${catColor};background:${bgColor}"
+             data-id="${t._id}"
+             ${draggable}>
+      <div class="sticky-header">
+        <div class="sticky-title">${escapeHtml(t.name)}</div>
+        <span class="sticky-cat" style="background:${catColor}20;color:${catColor}">${catName}</span>
       </div>
-    `;
+      ${bodyHtml}
+      <div class="sticky-progress-wrap"><div class="sticky-progress-fill" style="width:${progress}%"></div></div>
+      <div class="sticky-footer">
+        <span class="sticky-prio-badge ${prio}" title="Ưu tiên ${prio}"></span>
+        ${dueHtml}
+        <span>${progress}%</span>
+      </div>
+    </article>`;
+}
 
-    const shortId = t._id ? t._id.slice(-6) : '';
-    const copyIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="cursor:pointer;opacity:0.5;vertical-align:-2px" onclick="event.stopPropagation();copyTaskId('${t._id}')" title="Copy mã"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
+let dragTaskId = null;
 
-    const checkbox = canWrite()
-      ? `<input type="checkbox" ${checkedAttr} onchange="toggleTask('${t._id}', this.checked)" title="Hoàn thành">`
-      : `<input type="checkbox" ${checkedAttr} disabled title="Chỉ xem">`;
+function bindStickyEvents() {
+  document.querySelectorAll('.sticky-note').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.id;
+      if (id) viewTaskDetail(id);
+    });
+    el.addEventListener('dragstart', (e) => {
+      dragTaskId = el.dataset.id;
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', dragTaskId); } catch (_) {}
+    });
+    el.addEventListener('dragend', () => {
+      el.classList.remove('dragging');
+      dragTaskId = null;
+      document.querySelectorAll('.kanban-column.drag-over').forEach(c => c.classList.remove('drag-over'));
+    });
+  });
 
-    return `
-      <tr class="${doneClass}" onclick="viewTaskDetail('${t._id}')" style="cursor:pointer;">
-        <td class="td-check" onclick="event.stopPropagation()">${checkbox}</td>
-        <td class="td-id"><code style="font-size:0.7rem;color:#6366f1;cursor:pointer;" onclick="event.stopPropagation();copyTaskId('${t._id}')" title="Click để copy mã">#${shortId}</code></td>
-        <td class="td-name">${escapeHtml(t.name)}</td>
-        <td class="td-reason">${escapeHtml(t.reason || '—')}</td>
-        <td><span class="cat-tag" style="background:${catColor}20;color:${catColor}">${escapeHtml(catName)}</span></td>
-        <td class="td-date">${dateLabel}</td>
-        <td class="td-date ${dueDateClass}">${dueDate}</td>
-        <td>${progressBar}</td>
-        <td>${priorityBadge[t.priority] || priorityBadge.medium}</td>
-      </tr>`;
-  }).join('');
+  document.querySelectorAll('.kanban-column').forEach(col => {
+    col.addEventListener('dragover', (e) => {
+      if (!dragTaskId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      col.classList.add('drag-over');
+    });
+    col.addEventListener('dragleave', (e) => {
+      if (e.target === col) col.classList.remove('drag-over');
+    });
+    col.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      col.classList.remove('drag-over');
+      const id = dragTaskId;
+      if (!id) return;
+      const newStatus = col.dataset.status;
+      const task = tasks.find(t => t._id === id);
+      if (!task) return;
+      const currentStatus = statusFromProgress(task.progress);
+      if (currentStatus === newStatus) return;
+      if (!canWrite()) {
+        showToast('Bạn không có quyền chuyển task', 'error');
+        return;
+      }
+      const newProgress = progressFromStatus(newStatus, task.progress);
 
-  container.innerHTML = `
-    <div class="table-wrap">
-      <table class="task-table">
-        <thead>
-          <tr>
-            <th style="width:40px">✓</th>
-            <th style="width:70px">Mã</th>
-            <th>Tên task</th>
-            <th style="width:25%">Lý do</th>
-            <th>Danh mục</th>
-            <th style="width:90px">Ngày tạo</th>
-            <th style="width:90px">Dự kiến</th>
-            <th style="width:100px">Tiến độ</th>
-            <th style="width:70px">Ưu tiên</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+      // Optimistic UI: di chuyển ngay sang cột mới + spinner cho biết đang đồng bộ
+      const cardEl = document.querySelector(`.sticky-note[data-id="${id}"]`);
+      const targetList = col.querySelector('.kanban-list');
+      if (cardEl && targetList) {
+        const emptyEl = targetList.querySelector('.kanban-empty');
+        if (emptyEl) emptyEl.remove();
+        targetList.appendChild(cardEl);
+        cardEl.classList.add('is-syncing');
+        cardEl.setAttribute('draggable', 'false');
+        if (!cardEl.querySelector('.sticky-loading')) {
+          const sp = document.createElement('div');
+          sp.className = 'sticky-loading';
+          sp.innerHTML = '<div class="sticky-spinner"></div>';
+          cardEl.appendChild(sp);
+        }
+      }
+      col.classList.add('is-syncing');
+
+      try {
+        await updateTask(id, { progress: newProgress, completed: newProgress >= 100 });
+        await loadAll();
+        showToast('Đã chuyển task');
+      } catch (err) {
+        showToast(err.message, 'error');
+        await loadAll();
+      } finally {
+        col.classList.remove('is-syncing');
+      }
+    });
+  });
+
+  document.querySelectorAll('.kanban-add-btn').forEach(btn => {
+    btn.onclick = () => {
+      const status = btn.dataset.status;
+      openAddTaskModal({ initialStatus: status });
+    };
+  });
 }
 
 // ===== Copy Task ID =====
@@ -460,7 +577,6 @@ async function viewTaskDetail(id) {
   const name = document.getElementById('taskModalName');
   const category = document.getElementById('taskModalCategory');
   const status = document.getElementById('taskModalStatus');
-  const reason = document.getElementById('taskModalReason');
   const description = document.getElementById('taskModalDescription');
   const descSection = document.getElementById('taskModalDescSection');
   const progressBar = document.getElementById('taskModalProgressBar');
@@ -471,13 +587,19 @@ async function viewTaskDetail(id) {
   const editBtn = document.getElementById('taskModalEdit');
 
   name.textContent = task.name;
-  reason.textContent = task.reason || '—';
 
   if (task.description) {
-    description.textContent = task.description;
+    if (isHtmlContent(task.description)) {
+      description.innerHTML = task.description;
+      description.classList.add('rich-content');
+    } else {
+      description.textContent = task.description;
+      description.classList.remove('rich-content');
+    }
     descSection.style.display = 'block';
   } else {
     description.innerHTML = '<span class="task-empty-description">Chưa có mô tả chi tiết</span>';
+    description.classList.remove('rich-content');
     descSection.style.display = 'block';
   }
 
@@ -527,6 +649,49 @@ async function viewTaskDetail(id) {
 
 // ===== Edit Task Modal =====
 let editingTaskId = null;
+let editQuill = null;
+let addQuill = null;
+
+const QUILL_TOOLBAR = [
+  [{ header: [1, 2, 3, false] }],
+  [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
+  ['bold', 'italic', 'underline', 'strike'],
+  [{ color: [] }, { background: [] }],
+  [{ list: 'ordered' }, { list: 'bullet' }, { indent: '-1' }, { indent: '+1' }],
+  [{ align: [] }],
+  ['blockquote', 'code-block', 'link'],
+  ['clean']
+];
+
+function ensureEditQuill() {
+  if (editQuill || typeof Quill === 'undefined') return editQuill;
+  const el = document.getElementById('editTaskDescEditor');
+  if (!el) return null;
+  editQuill = new Quill(el, {
+    theme: 'snow',
+    placeholder: 'Nhập mô tả chi tiết...',
+    modules: { toolbar: QUILL_TOOLBAR }
+  });
+  return editQuill;
+}
+
+function ensureAddQuill() {
+  if (addQuill || typeof Quill === 'undefined') return addQuill;
+  const el = document.getElementById('addTaskDescEditor');
+  if (!el) return null;
+  addQuill = new Quill(el, {
+    theme: 'snow',
+    placeholder: 'Nhập mô tả chi tiết...',
+    modules: { toolbar: QUILL_TOOLBAR }
+  });
+  return addQuill;
+}
+
+function quillIsEmpty(q) {
+  if (!q) return true;
+  const text = q.getText().trim();
+  return text === '';
+}
 
 function openEditModal(id) {
   if (!canWrite()) {
@@ -539,8 +704,17 @@ function openEditModal(id) {
 
   editingTaskId = id;
   document.getElementById('editTaskName').value = task.name;
-  document.getElementById('editTaskReason').value = task.reason || '';
-  document.getElementById('editTaskDesc').value = task.description || '';
+  const q = ensureEditQuill();
+  if (q) {
+    if (task.description && isHtmlContent(task.description)) {
+      q.root.innerHTML = task.description;
+    } else {
+      q.setText(task.description || '');
+    }
+  }
+  const taskColor = task.color || '';
+  document.getElementById('editTaskColorValue').value = taskColor;
+  syncTaskColorSwatches('edit', taskColor);
   document.getElementById('editTaskProgress').value = task.progress || 0;
   document.getElementById('editProgressLabel').textContent = task.progress || 0;
   document.getElementById('editTaskDueDate').value = task.dueDate ? formatDateInput(task.dueDate) : '';
@@ -552,7 +726,7 @@ function closeEditModal() {
   editingTaskId = null;
 }
 
-function openAddTaskModal() {
+function openAddTaskModal(opts = {}) {
   if (!canWrite()) {
     showToast('Bạn cần đăng nhập để tạo task', 'error');
     showAuthModal('login');
@@ -560,10 +734,17 @@ function openAddTaskModal() {
   }
   document.getElementById('addTaskDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('addTaskName').value = '';
-  document.getElementById('addTaskReason').value = '';
-  document.getElementById('addTaskDesc').value = '';
+  const q = ensureAddQuill();
+  if (q) q.setText('');
   document.getElementById('addTaskPriority').value = 'medium';
-  document.getElementById('addTaskProgress').value = 0;
+  document.getElementById('addTaskColorValue').value = '';
+  syncTaskColorSwatches('add', '');
+
+  let initialProgress = 0;
+  if (opts.initialStatus === 'doing') initialProgress = 50;
+  else if (opts.initialStatus === 'done') initialProgress = 100;
+  document.getElementById('addTaskProgress').value = initialProgress;
+  document.getElementById('addProgressLabel').textContent = initialProgress;
   document.getElementById('addTaskDueDate').value = '';
   // Đổ danh sách danh mục
   const catSelect = document.getElementById('addTaskCategory');
@@ -574,6 +755,73 @@ window.openAddTaskModal = openAddTaskModal;
 
 function closeAddModal() {
   document.getElementById('addTaskModal').classList.remove('active');
+}
+
+// ===== Category Modal (Add / Edit) =====
+let editingCategoryId = null;
+
+function openCategoryModal(mode, categoryId = null) {
+  if (!canWrite()) {
+    showToast('Bạn cần đăng nhập để quản lý danh mục', 'error');
+    showAuthModal('login');
+    return;
+  }
+  const modal = document.getElementById('categoryModal');
+  const title = document.getElementById('categoryModalTitle');
+  const nameInput = document.getElementById('categoryModalName');
+  const colorInput = document.getElementById('categoryModalColor');
+  const colorHex = document.getElementById('categoryModalColorHex');
+  const delBtn = document.getElementById('categoryModalDelete');
+
+  if (mode === 'edit') {
+    const cat = categories.find(c => c._id === categoryId);
+    if (!cat) {
+      showToast('Không tìm thấy danh mục', 'error');
+      return;
+    }
+    editingCategoryId = categoryId;
+    title.textContent = 'Sửa danh mục';
+    nameInput.value = cat.name || '';
+    const color = cat.color || '#6366f1';
+    colorInput.value = color;
+    colorHex.value = color;
+    delBtn.style.display = '';
+  } else {
+    editingCategoryId = null;
+    title.textContent = 'Thêm danh mục';
+    nameInput.value = '';
+    colorInput.value = '#6366f1';
+    colorHex.value = '#6366f1';
+    delBtn.style.display = 'none';
+  }
+  syncCategoryColorPresets(colorInput.value);
+  modal.classList.add('active');
+  setTimeout(() => nameInput.focus(), 50);
+}
+
+function closeCategoryModal() {
+  document.getElementById('categoryModal').classList.remove('active');
+  editingCategoryId = null;
+}
+
+function syncCategoryColorPresets(activeColor) {
+  document.querySelectorAll('.cat-color-preset').forEach(b => {
+    b.classList.toggle('active', (b.dataset.color || '').toLowerCase() === (activeColor || '').toLowerCase());
+  });
+}
+
+function repopulateAddTaskCategorySelect(selectedId) {
+  const catSelect = document.getElementById('addTaskCategory');
+  if (!catSelect) return;
+  catSelect.innerHTML = (categories || []).map(c => `<option value="${c._id}">${escapeHtml(c.name)}</option>`).join('');
+  if (selectedId) catSelect.value = selectedId;
+}
+
+function syncTaskColorSwatches(mode, activeColor) {
+  const modal = mode === 'edit' ? 'editTaskModal' : 'addTaskModal';
+  document.querySelectorAll(`#${modal} .task-color-swatch`).forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.color === activeColor);
+  });
 }
 
 function debounce(fn, delay) {
@@ -605,15 +853,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.target === document.getElementById('editTaskModal')) closeEditModal();
   });
 
+  document.getElementById('editTaskDelete')?.addEventListener('click', async () => {
+    if (!editingTaskId) return;
+    if (!canWrite()) {
+      showToast('Bạn không có quyền xoá task', 'error');
+      return;
+    }
+    if (!confirm('Xoá task này?')) return;
+    try {
+      await deleteTask(editingTaskId);
+      showToast('Đã xoá task');
+      closeEditModal();
+      await loadAll();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
   document.getElementById('editTaskSave').addEventListener('click', async () => {
     if (!editingTaskId) return;
+    const q = ensureEditQuill();
+    const desc = (q && !quillIsEmpty(q)) ? q.root.innerHTML : '';
+    const colorValue = document.getElementById('editTaskColorValue').value.trim();
     const updates = {
       name: document.getElementById('editTaskName').value.trim(),
-      reason: document.getElementById('editTaskReason').value.trim(),
-      description: document.getElementById('editTaskDesc').value.trim(),
+      description: desc,
+      color: colorValue || null,
       progress: Math.min(100, Math.max(0, parseInt(document.getElementById('editTaskProgress').value) || 0)),
       dueDate: document.getElementById('editTaskDueDate').value || null,
     };
+    updates.completed = updates.progress >= 100;
     if (!updates.name) return showToast('Tên task không được để trống', 'error');
     try {
       await updateTask(editingTaskId, updates);
@@ -633,20 +902,122 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   document.getElementById('addTaskSave').addEventListener('click', async () => {
     const name = document.getElementById('addTaskName').value.trim();
-    const reason = document.getElementById('addTaskReason').value.trim();
-    const desc = document.getElementById('addTaskDesc').value.trim();
+    const q = ensureAddQuill();
+    const desc = (q && !quillIsEmpty(q)) ? q.root.innerHTML : '';
     const category = document.getElementById('addTaskCategory').value;
     const priority = document.getElementById('addTaskPriority').value;
     const date = document.getElementById('addTaskDate').value;
     const dueDate = document.getElementById('addTaskDueDate').value;
     const progress = Math.min(100, Math.max(0, parseInt(document.getElementById('addTaskProgress').value) || 0));
+    const colorValue = document.getElementById('addTaskColorValue').value.trim();
     if (!name || !category || !date) return showToast('Vui lòng điền tên, danh mục và ngày', 'error');
     try {
-      await createTask({ name, reason, description: desc, category, priority, date, dueDate: dueDate || null, progress });
+      await createTask({ name, description: desc, category, priority, date, dueDate: dueDate || null, progress, completed: progress >= 100, color: colorValue || null });
       showToast('Đã thêm task');
       closeAddModal();
       await loadAll();
     } catch (err) { showToast(err.message, 'error'); }
+  });
+
+  // Category modal trigger từ icon trong Add Task
+  document.getElementById('btnAddCategory')?.addEventListener('click', () => openCategoryModal('create'));
+  document.getElementById('btnEditCategory')?.addEventListener('click', () => {
+    const id = document.getElementById('addTaskCategory').value;
+    if (!id) return showToast('Hãy chọn danh mục cần sửa', 'error');
+    openCategoryModal('edit', id);
+  });
+
+  // Category modal events
+  document.getElementById('categoryModalClose')?.addEventListener('click', closeCategoryModal);
+  document.getElementById('categoryModalCancel')?.addEventListener('click', closeCategoryModal);
+  document.getElementById('categoryModal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('categoryModal')) closeCategoryModal();
+  });
+
+  const catColorInput = document.getElementById('categoryModalColor');
+  const catColorHex = document.getElementById('categoryModalColorHex');
+  catColorInput?.addEventListener('input', (e) => {
+    catColorHex.value = e.target.value;
+    syncCategoryColorPresets(e.target.value);
+  });
+  catColorHex?.addEventListener('input', (e) => {
+    const v = e.target.value.trim();
+    if (/^#[0-9a-f]{6}$/i.test(v)) {
+      catColorInput.value = v;
+      syncCategoryColorPresets(v);
+    }
+  });
+  document.querySelectorAll('.cat-color-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const color = btn.dataset.color;
+      catColorInput.value = color;
+      catColorHex.value = color;
+      syncCategoryColorPresets(color);
+    });
+  });
+
+  document.getElementById('categoryModalSave')?.addEventListener('click', async () => {
+    const name = document.getElementById('categoryModalName').value.trim();
+    const color = document.getElementById('categoryModalColor').value;
+    if (!name) return showToast('Tên danh mục không được trống', 'error');
+    try {
+      let saved;
+      if (editingCategoryId) {
+        saved = await updateCategory(editingCategoryId, { name, color });
+        showToast('Đã cập nhật danh mục');
+      } else {
+        saved = await createCategory({ name, color, date: new Date().toISOString() });
+        showToast('Đã thêm danh mục');
+      }
+      const savedId = saved?._id || editingCategoryId;
+      closeCategoryModal();
+      await fetchCategories();
+      renderCategories();
+      repopulateAddTaskCategorySelect(savedId);
+      renderBoard();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('categoryModalDelete')?.addEventListener('click', async () => {
+    if (!editingCategoryId) return;
+    if (!confirm('Xoá danh mục này? Tất cả task thuộc danh mục cũng sẽ bị xoá.')) return;
+    try {
+      await deleteCategory(editingCategoryId);
+      showToast('Đã xoá danh mục');
+      closeCategoryModal();
+      await loadAll();
+      repopulateAddTaskCategorySelect();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  // Task color swatch handlers
+  document.querySelectorAll('.task-color-swatch').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const color = btn.dataset.color;
+      const modal = btn.closest('.task-modal-overlay');
+      const isEdit = modal && modal.id === 'editTaskModal';
+      const hiddenInput = document.getElementById(isEdit ? 'editTaskColorValue' : 'addTaskColorValue');
+      if (hiddenInput) {
+        hiddenInput.value = color;
+        syncTaskColorSwatches(isEdit ? 'edit' : 'add', color);
+      }
+    });
+  });
+
+  document.getElementById('editTaskColorReset')?.addEventListener('click', () => {
+    document.getElementById('editTaskColorValue').value = '';
+    syncTaskColorSwatches('edit', '');
+    showToast('Sẽ dùng màu mặc định theo priority');
+  });
+
+  document.getElementById('addTaskColorReset')?.addEventListener('click', () => {
+    document.getElementById('addTaskColorValue').value = '';
+    syncTaskColorSwatches('add', '');
+    showToast('Sẽ dùng màu mặc định theo priority');
   });
 
   // Init

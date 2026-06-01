@@ -19,7 +19,7 @@ const taskSchema = new mongoose.Schema({
   description: {
     type: String,
     trim: true,
-    maxlength: [2000, 'Mô tả chi tiết tối đa 2000 ký tự']
+    maxlength: [20000, 'Mô tả chi tiết tối đa 20000 ký tự']
   },
   category: {
     type: mongoose.Schema.Types.ObjectId,
@@ -49,6 +49,10 @@ const taskSchema = new mongoose.Schema({
     type: String,
     enum: ['low', 'medium', 'high'],
     default: 'medium'
+  },
+  color: {
+    type: String,
+    default: null
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
