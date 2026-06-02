@@ -368,7 +368,6 @@
 }
 #bot-widget-wrapper .sleep-btn-header:hover { opacity: 1; transform: scale(1.1); }
 #bot-widget-wrapper #bot-close-chat svg { transition: transform 0.25s ease; }
-#bot-widget-wrapper #bot-close-chat { color: #ef4444 !important; }
 #bot-widget-wrapper #bot-close-chat:hover svg { transform: rotate(90deg); }
 
 #bot-widget-wrapper .chat-messages {
