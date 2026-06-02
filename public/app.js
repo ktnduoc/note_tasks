@@ -585,6 +585,9 @@ async function viewTaskDetail(id) {
   const dueDate = document.getElementById('taskModalDueDate');
   const dueDateItem = document.getElementById('taskModalDueDateItem');
   const editBtn = document.getElementById('taskModalEdit');
+  const accentColor = task.color || task.category?.color || '#6366f1';
+
+  modal.style.setProperty('--task-accent', accentColor);
 
   name.textContent = task.name;
 

@@ -101,10 +101,10 @@
 .kanban-list {
   flex: 1;
   display: flex;
-  flex-direction: column-reverse;
-  gap: 0;
+  flex-direction: column;
+  gap: 12px;
   min-height: 80px;
-  padding: 42px 2px 2px;
+  padding: 10px 2px 2px;
   position: relative;
 }
 
@@ -141,22 +141,17 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: -40px;
-  max-height: 65px;
-  overflow: hidden;
-}
-
-.sticky-note:first-child {
-  max-height: none;
   margin-top: 0;
+  max-height: none;
+  overflow: hidden;
 }
 
 .sticky-note:hover {
   transform: translateY(-8px) rotate(-0.5deg);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15), 0 3px 6px rgba(0, 0, 0, 0.08);
   z-index: 100;
-  max-height: 500px;
-  margin-top: 10px;
+  max-height: none;
+  margin-top: 0;
 }
 
 .sticky-note.dragging {
@@ -244,8 +239,6 @@
   font-size: 0.82rem;
   color: #334155;
   line-height: 1.4;
-  max-height: 90px;
-  overflow: hidden;
   word-break: break-word;
 }
 
@@ -254,6 +247,9 @@
 .sticky-body ul, .sticky-body ol { margin: 0 0 4px; padding-left: 18px; }
 .sticky-body strong { font-weight: 800; }
 .sticky-body em { font-style: italic; }
+.sticky-body h1 { font-size: 1.1rem; font-weight: 800; margin: 4px 0; }
+.sticky-body h2 { font-size: 1rem; font-weight: 800; margin: 4px 0; }
+.sticky-body h3 { font-size: 0.9rem; font-weight: 700; margin: 3px 0; }
 
 .sticky-footer {
   display: flex;

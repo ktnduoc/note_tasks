@@ -1203,6 +1203,49 @@
     bubble.classList.add('show');
     clearTimeout(bubble._timeout);
     bubble._timeout = setTimeout(() => bubble.classList.remove('show'), duration);
+    requestAnimationFrame(() => positionBubble());
+  }
+
+  function positionBubble() {
+    if (!bubble || !fab || !bubble.classList.contains('show')) return;
+
+    const gap = 12;
+    const fabRect = fab.getBoundingClientRect();
+
+    bubble.style.right = 'auto';
+    bubble.style.bottom = 'auto';
+
+    const bubbleRect = bubble.getBoundingClientRect();
+    let left = fabRect.left - bubbleRect.width - gap;
+    let top = fabRect.top + (fabRect.height - bubbleRect.height) / 2;
+
+    if (left < 8) {
+      left = fabRect.right + gap;
+    }
+    if (left + bubbleRect.width > window.innerWidth - 8) {
+      left = window.innerWidth - bubbleRect.width - 8;
+    }
+    top = Math.min(Math.max(top, 8), window.innerHeight - bubbleRect.height - 8);
+
+    bubble.style.left = `${left}px`;
+    bubble.style.top = `${top}px`;
+  }
+
+  const interactionBubbles = {
+    tap: ['???', '#$@#/..'],
+    throw: ['@@@'],
+    nearStop: ['???'],
+  };
+
+  function pickRandomMessage(list) {
+    if (!Array.isArray(list) || list.length === 0) return '';
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  function showInteractionBubble(type, duration = 1200) {
+    const text = pickRandomMessage(interactionBubbles[type]);
+    if (!text) return;
+    showBubble(text, duration);
   }
 
   // ===== Custom Confirm =====
@@ -1827,6 +1870,23 @@
   async function handleCommand(text, targetBubble) {
     const t = text.trim();
 
+    // /help - trợ giúp nhanh (không gọi bot)
+    if (t === '/help' || t === '/trogiup') {
+      const helpTable = [
+        '| Lệnh | Mô tả | Ví dụ |',
+        '| --- | --- | --- |',
+        '| /add | Mở form thêm task | /add |',
+        '| /edit | Sửa tên task theo mã | /edit #abc123 Tên mới |',
+        '| /del | Xoá task theo mã | /del #abc123 |',
+        '| /progress | Cập nhật tiến độ | /progress #abc123 80 |',
+        '| /model | Xem/đổi model AI | /model gemma31b |',
+        '| /login | Đăng nhập | /login |',
+        '| /logout | Đăng xuất | /logout |',
+      ].join('\n');
+      setBotMessageContent(targetBubble, helpTable);
+      return true;
+    }
+
     // /model - chuyển đổi model
     if (t === '/model' || t.startsWith('/model ')) {
       const parts = t.split(/\s+/);
@@ -2203,6 +2263,7 @@
       let rotation = 0;
       let rotSpeed = (vx + vy) * 3;
       const minVel = 0.3;
+      let nearStopShown = false;
 
       function animate() {
         // Cập nhật vị trí
@@ -2237,6 +2298,10 @@
         const speed = Math.hypot(vx, vy);
         if (speed < 3 && !fab.classList.contains('dizzy')) {
           fab.classList.add('dizzy');
+          if (!nearStopShown) {
+            showInteractionBubble('nearStop', 1300);
+            nearStopShown = true;
+          }
         } else if (speed >= 3 && fab.classList.contains('dizzy')) {
           fab.classList.remove('dizzy');
         }
@@ -2289,6 +2354,8 @@
       recentVx = 0;
       recentVy = 0;
 
+      showInteractionBubble('tap', 900);
+
       try { fab.setPointerCapture?.(event.pointerId); } catch(e) {}
       fab.style.cursor = 'grabbing';
     }
@@ -2335,6 +2402,7 @@
         const MIN_THROW_SPEED = 14;
 
         if (timeSinceLastMove < 100 && throwSpeed > MIN_THROW_SPEED) {
+          showInteractionBubble('throw', 1000);
           startBounce(vx, vy);
         }
       }
@@ -2352,6 +2420,66 @@
         applyPosition(rect.left, rect.top);
         savePosition();
       }
+    }
+
+    function setupHeaderDrag() {
+      const chatWindow = document.getElementById('bot-chat-window');
+      const header = chatWindow?.querySelector('.chat-header');
+      if (!header) return;
+
+      let startX = 0;
+      let startY = 0;
+      let startLeft = 0;
+      let startTop = 0;
+      let dragging = false;
+
+      const onMove = (event) => {
+        if (!dragging) return;
+        const x = event.touches?.[0]?.clientX ?? event.clientX;
+        const y = event.touches?.[0]?.clientY ?? event.clientY;
+        const dx = x - startX;
+        const dy = y - startY;
+        applyPosition(startLeft + dx, startTop + dy);
+        positionBubble();
+        event.preventDefault();
+      };
+
+      const onEnd = () => {
+        if (!dragging) return;
+        dragging = false;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        savePosition();
+      };
+
+      const onStart = (event) => {
+        if (event.button !== undefined && event.button !== 0) return;
+        if (event.target.closest('button, a, .theme-dot')) return;
+        if (!wrapper.classList.contains('is-open')) return;
+
+        const rect = fab.getBoundingClientRect();
+        const x = event.touches?.[0]?.clientX ?? event.clientX;
+        const y = event.touches?.[0]?.clientY ?? event.clientY;
+        startX = x;
+        startY = y;
+        startLeft = rect.left;
+        startTop = rect.top;
+        dragging = true;
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'move';
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onEnd);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onEnd);
+        event.preventDefault();
+      };
+
+      header.addEventListener('mousedown', onStart);
+      header.addEventListener('touchstart', onStart, { passive: false });
     }
 
     // ===== Bay đến vị trí chuột khi double-click =====
@@ -2415,6 +2543,7 @@
     fab.addEventListener('pointercancel', onPointerUp);
     window.addEventListener('resize', onResize);
     document.addEventListener('dblclick', onDoubleClick);
+    setupHeaderDrag();
   }
 
   // ===== Event Listeners =====
@@ -2434,6 +2563,7 @@
   uploadBtn?.addEventListener('click', (e) => { e.preventDefault(); showToast('Chức năng đang phát triển.'); });
   // ===== Gợi ý lệnh khi gõ / =====
   const commands = [
+    { cmd: '/help', desc: 'Trợ giúp nhanh', usage: '/help' },
     { cmd: '/model', desc: 'Chuyển đổi model AI', usage: '/model' },
     { cmd: '/add', desc: 'Thêm task mới', usage: '/add' },
     { cmd: '/del', desc: 'Xoá task theo mã', usage: '/del #abc123' },
@@ -2599,6 +2729,7 @@
   setupDraggableWidget();
   setupIdleTumble();
   playWelcomeEyes();
+  window.addEventListener('resize', () => positionBubble());
 
   // Welcome eyes khi load trang: liếc trái → phải → xuống → blink → về giữa
   function playWelcomeEyes() {

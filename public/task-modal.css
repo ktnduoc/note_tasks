@@ -21,15 +21,37 @@
 }
 
 .task-modal {
-  background: white;
+  --task-accent: #6366f1;
+  background: #fffdf7;
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(15, 23, 42, 0.035) 0,
+    rgba(15, 23, 42, 0.035) 1px,
+    transparent 1px,
+    transparent 28px
+  );
   border-radius: 16px;
   width: 90%;
   max-width: 600px;
   max-height: 85vh;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.28), 0 0 0 6px rgba(255, 255, 255, 0.7) inset;
   transform: scale(0.9);
   transition: transform 0.2s ease;
+  position: relative;
+}
+
+.task-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: var(--task-accent);
+  border-radius: 16px 16px 0 0;
+  pointer-events: none;
 }
 
 .task-modal-overlay.active .task-modal {
@@ -38,7 +60,7 @@
 
 .task-modal-header {
   padding: 24px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px dashed rgba(15, 23, 42, 0.12);
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -124,7 +146,7 @@
 
 .task-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  background: linear-gradient(90deg, var(--task-accent), #8b5cf6);
   border-radius: 4px;
   transition: width 0.3s ease;
 }
@@ -137,7 +159,7 @@
 
 .task-modal-footer {
   padding: 16px 24px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px dashed rgba(15, 23, 42, 0.12);
   display: flex;
   gap: 8px;
   justify-content: flex-end;
@@ -151,7 +173,7 @@
   border-radius: 6px;
   font-size: 0.875rem;
   font-weight: 600;
-  background: #f1f5f9;
+  background: color-mix(in srgb, var(--task-accent) 12%, #ffffff);
   color: #475569;
 }
 
@@ -190,7 +212,7 @@
 
 .task-date-item {
   padding: 12px;
-  background: #f8fafc;
+  background: rgba(248, 250, 252, 0.75);
   border-radius: 8px;
 }
 
@@ -284,10 +306,10 @@
 }
 
 .task-description-box {
-  background: #f8fafc;
+  background: rgba(248, 250, 252, 0.8);
   padding: 16px;
   border-radius: 8px;
-  border-left: 3px solid #6366f1;
+  border-left: 3px solid var(--task-accent);
   margin-top: 8px;
 }
 

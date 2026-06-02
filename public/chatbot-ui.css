@@ -326,6 +326,7 @@
   background: linear-gradient(135deg, var(--bot-primary), var(--bot-secondary)) !important;
   color: white !important; display: flex !important; align-items: center !important; justify-content: space-between !important;
   transition: background 0.25s ease !important;
+  cursor: move;
 }
 #bot-widget-wrapper .chat-header h3 {
   margin: 0 !important; margin-bottom: 2px !important;
@@ -355,9 +356,19 @@
   background: transparent !important; color: white !important; cursor: pointer !important;
   display: flex !important; align-items: center !important; justify-content: center !important;
   opacity: 0.86; transition: opacity 0.2s, transform 0.2s;
+  line-height: 1 !important;
+}
+#bot-widget-wrapper .sleep-btn-header svg,
+#bot-widget-wrapper .sleep-btn-header i {
+  display: block;
+}
+#bot-widget-wrapper .sleep-btn-header i {
+  font-size: 16px;
+  line-height: 1;
 }
 #bot-widget-wrapper .sleep-btn-header:hover { opacity: 1; transform: scale(1.1); }
 #bot-widget-wrapper #bot-close-chat svg { transition: transform 0.25s ease; }
+#bot-widget-wrapper #bot-close-chat { color: #ef4444 !important; }
 #bot-widget-wrapper #bot-close-chat:hover svg { transform: rotate(90deg); }
 
 #bot-widget-wrapper .chat-messages {
@@ -552,19 +563,13 @@
 @keyframes toastProgress { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
 #bot-widget-wrapper .bot-bubble {
-  position: fixed; right: 98px; bottom: 60px; background: var(--bot-primary) !important;
+  position: fixed; left: 0; top: 0; background: var(--bot-primary) !important;
   padding: 10px 16px !important; border-radius: 12px 12px 0 12px !important;
   box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important; font-size: 13px !important;
   color: white !important; max-width: 200px !important; z-index: 2147483647;
   opacity: 0; transform: translateY(10px) scale(0.9);
   transition: all 0.3s cubic-bezier(0.175,0.885,0.32,1.275); pointer-events: none;
   border: 1px solid rgba(255,255,255,0.1) !important; font-weight: 500 !important;
-}
-#bot-widget-wrapper.is-positioned .bot-bubble {
-  right: auto;
-  bottom: auto;
-  left: max(8px, calc(var(--bot-fab-left) - 210px));
-  top: max(8px, calc(var(--bot-fab-top) - 10px));
 }
 #bot-widget-wrapper .bot-bubble::after {
   content: ''; position: absolute; bottom: -1px; right: -8px; width: 0; height: 0;
@@ -627,10 +632,6 @@
     width: calc(100vw - 32px);
   }
   #bot-widget-wrapper .bot-bubble {
-    right: 88px; bottom: 56px; max-width: calc(100vw - 116px) !important;
-  }
-  #bot-widget-wrapper.is-positioned .bot-bubble {
-    left: max(8px, calc(var(--bot-fab-left) - 200px));
-    top: max(8px, calc(var(--bot-fab-top) - 10px));
+    max-width: calc(100vw - 106px) !important;
   }
 }
