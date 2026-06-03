@@ -322,6 +322,8 @@
   }
 
   function renderBotMarkdown(text) {
+    // Auto-wrap HTML thô trước khi parse
+    text = wrapRawHtml(text);
     const lines = text.split(/\r?\n/);
     const html = [];
     let listType = null;
@@ -453,6 +455,42 @@
     }
     closeList(); flushTable(); flushCodeBlock(); flushBlockquote();
     return html.join('');
+  }
+
+  // Tự động wrap HTML thô (không nằm trong ```html) vào code block
+  function wrapRawHtml(text) {
+    // Nếu đã có ```html thì giữ nguyên
+    if (/```html/.test(text)) return text;
+
+    // Phát hiện HTML thô: có <!DOCTYPE hoặc thẻ html mở
+    const hasDoctype = /<!doctype\s+html/i.test(text);
+    const hasHtmlTag = /<html[\s>]/i.test(text);
+
+    if (!hasDoctype && !hasHtmlTag) return text;
+
+    // Tìm vị trí bắt đầu HTML (trước <!DOCTYPE hoặc <html)
+    let htmlStart = text.search(/<!doctype\s+html/i);
+    if (htmlStart === -1) htmlStart = text.search(/<html[\s>]/i);
+    if (htmlStart === -1) return text;
+
+    const beforeHtml = text.substring(0, htmlStart).trim();
+    const htmlPart = text.substring(htmlStart).trim();
+
+    // Tách phần text sau </html> nếu có
+    const closeIdx = htmlPart.search(/<\/html>/i);
+    let afterHtml = '';
+    let finalHtml = htmlPart;
+    if (closeIdx !== -1) {
+      finalHtml = htmlPart.substring(0, closeIdx + 7);
+      afterHtml = htmlPart.substring(closeIdx + 7).trim();
+    }
+
+    let result = '';
+    if (beforeHtml) result += beforeHtml + '\n\n';
+    result += '```html\n' + finalHtml + '\n```';
+    if (afterHtml) result += '\n\n' + afterHtml;
+
+    return result;
   }
 
   function setBotMessageContent(targetBubble, text) {
@@ -2794,11 +2832,8 @@
       full.style.display = 'inline-block';
       toggleBtn.style.display = 'none';
 
-      // Tạo blob URL cho iframe
-      const blob = new Blob([code], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      iframe.src = url;
-      iframe._blobUrl = url;
+      // Dùng srcdoc thay blob URL để inline script chạy được trong sandbox
+      iframe.srcdoc = code;
 
       // Tự điều chỉnh chiều cao iframe
       iframe.onload = () => {
@@ -2825,11 +2860,8 @@
       const full = block.querySelector('.bot-html-full-btn');
       const toggleBtn = block.querySelector('.bot-html-toggle-src');
 
-      // Dọn dẹp blob URL
-      if (iframe._blobUrl) {
-        URL.revokeObjectURL(iframe._blobUrl);
-        iframe._blobUrl = null;
-      }
+      // Dọn dẹp
+      iframe.srcdoc = '';
       iframe.src = 'about:blank';
 
       // Thoát fullchat nếu đang full
@@ -2878,8 +2910,11 @@
         messages.style.overflowY = '';
         if (iframe) {
           iframe.style.height = '';
-          if (iframe.src && iframe.src !== 'about:blank') {
-            iframe.src = iframe.src;
+          // Refresh srcdoc để re-trigger onload auto-height
+          if (iframe.srcdoc) {
+            const doc = iframe.srcdoc;
+            iframe.srcdoc = '';
+            requestAnimationFrame(() => { iframe.srcdoc = doc; });
           }
         }
       } else {
