@@ -10,7 +10,7 @@
   let configLoaded = false;
 
   // Model switching: đã test - chỉ giữ model hoạt động
-  let currentModelType = 'gptoss'; // Mặc định GPT-OSS Free, fallback OSS Cerebras
+  let currentModelType = 'oss'; // Mặc định OSS 120B (Cerebras)
   let kimiApiKey = ''; // Sẽ load từ server (OpenRouter key)
   const modelConfigs = {
     oss: {
@@ -1900,25 +1900,14 @@
           if (isActive) {
             html += `<li><strong>${escapeHtml(cfg.name)}</strong> ✓</li>`;
           } else {
-            html += `<li><a href="#" data-model="${key}" style="text-decoration:none;color:#6c8ebf;cursor:pointer;">${escapeHtml(cfg.name)}</a></li>`;
+            html += `<li style="color:#999;cursor:not-allowed;opacity:0.6;">${escapeHtml(cfg.name)} <span style="font-size:11px;">(dùng /model ${key})</span></li>`;
           }
         });
         html += '</ul>';
+        html += '<p style="font-size:11px;color:#888;margin-top:4px;">Để đổi model, gõ <code>/model &lt;tên&gt;</code></p>';
 
         targetBubble.innerHTML = html;
-
-        // Gắn sự kiện click cho các link model
-        targetBubble.querySelectorAll('a[data-model]').forEach(link => {
-          link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const key = link.dataset.model;
-            const cfg = modelConfigs[key];
-            currentModelType = key;
-            localStorage.setItem('chatbot-model', key);
-            setBotMessageContent(targetBubble, `✅ Đã chuyển sang **${cfg.name}**!`);
-          });
-        });
-
+        // Không gắn sự kiện click nữa - chỉ chuyển qua lệnh /model <key>
         scrollBottom();
         return true;
       }
