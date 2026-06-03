@@ -257,6 +257,7 @@
       'Khi xoá nhiều task theo thứ tự, hiểu "task đầu" là các task đầu trong danh sách hiện tại sau khi lọc theo ngày/danh mục nếu có.',
       'Luôn giữ ngữ cảnh hội thoại trước đó. Nếu người dùng đang bổ sung thông tin cho tác vụ đang hỏi dở, tiếp tục tác vụ đó thay vì huỷ hoặc bắt đầu lại.',
       'KHI NGƯỜI DÙNG DÙNG TỪ THAY THẾ ("nó", "task đó", "cái này", "đấy"): tự động hiểu là task/category VỪA được nhắc đến trong tin nhắn trước của bot. Dùng taskId đã có sẵn từ kết quả query_db/list_tasks trước đó.',
+      'KHI TRẢ VỀ CODE HTML: Luôn trả toàn bộ code HTML trong MỘT khối ```html duy nhất, KHÔNG tách thành nhiều khối nhỏ. Viết đầy đủ từ <!DOCTYPE html> đến </html>, không cắt xén. Chỉ bọc code trong ```html, không dùng thẻ <pre><code>. Sau khối code có thể giải thích ngắn gọn bên ngoài.',
     ].join(' ');
   }
 
