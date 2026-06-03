@@ -279,6 +279,21 @@
       .replace(/'/g, '&#039;');
   }
 
+  // Kiểm tra code có phải HTML hợp lệ không
+  function isHtmlLike(code) {
+    const s = code.trim().toLowerCase();
+    // Có DOCTYPE hoặc thẻ html/head/body
+    if (/<!doctype\s+html/i.test(s)) return true;
+    if (/<(html|head|body)[\s>]/i.test(s)) return true;
+    // Có cặp thẻ mở/đóng html điển hình
+    if (/<\/?(html|head|body|div|span|p|table|style|script|meta|link|title|h[1-6]|ul|ol|li|a|img|form|input|button|select|textarea|iframe|svg|canvas|header|footer|section|article|nav|main|aside)[\s>]/i.test(s)) {
+      // Có ít nhất 3 thẻ HTML
+      const tagCount = (s.match(/<\/?[a-z][a-z0-9]*[\s>]/gi) || []).length;
+      return tagCount >= 3;
+    }
+    return false;
+  }
+
   function formatInlineMarkdown(value) {
     // Xử lý nút chi tiết task trước khi escape: [detail:taskId:label]
     const detailBtns = [];
@@ -313,6 +328,7 @@
     let tableRows = [];
     let inCodeBlock = false;
     let codeContent = [];
+    let codeLanguage = '';
     let inBlockquote = false;
     let blockquoteLines = [];
 
@@ -341,10 +357,33 @@
       inTable = false;
     }
     function flushCodeBlock() {
-      if (!codeContent.length) return;
-      html.push(`<pre><code>${escapeHtml(codeContent.join('\n'))}</code></pre>`);
+      if (!codeContent.length) { codeLanguage = ''; return; }
+      const rawCode = codeContent.join('\n');
+
+      // Detect HTML: language tag là html hoặc nội dung giống HTML
+      const isHtml = codeLanguage === 'html' || isHtmlLike(rawCode);
+
+      if (isHtml) {
+        const blockId = 'html-preview-' + Math.random().toString(36).substring(2, 8);
+        // Luôn hiển thị source + preview area
+        html.push(`<div class="bot-html-block" id="${blockId}">`);
+        html.push(`<div class="bot-html-toolbar">`);
+        html.push(`<span class="bot-html-label">🌐 HTML Preview</span>`);
+        html.push(`<button class="bot-html-btn bot-html-run-btn" data-block="${blockId}">▶ Run Code</button>`);
+        html.push(`<button class="bot-html-btn bot-html-stop-btn" data-block="${blockId}" style="display:none;">⏹ Stop</button>`);
+        html.push(`<button class="bot-html-btn bot-html-full-btn" data-block="${blockId}" style="display:none;">⛶ Full</button>`);
+        html.push(`<button class="bot-html-btn bot-html-toggle-src" data-block="${blockId}">&lt;/&gt; Source</button>`);
+        html.push(`</div>`);
+        html.push(`<div class="bot-html-source"><pre><code>${escapeHtml(rawCode)}</code></pre></div>`);
+        html.push(`<div class="bot-html-preview-container" style="display:none;"><iframe class="bot-html-preview-iframe" sandbox="allow-scripts allow-same-origin"></iframe></div>`);
+        html.push(`</div>`);
+      } else {
+        html.push(`<pre><code>${escapeHtml(rawCode)}</code></pre>`);
+      }
+
       codeContent = [];
       inCodeBlock = false;
+      codeLanguage = '';
     }
     function flushBlockquote() {
       if (!blockquoteLines.length) return;
@@ -362,6 +401,7 @@
         closeList(); flushTable(); flushBlockquote();
         inCodeBlock = true;
         codeContent = [];
+        codeLanguage = line.substring(3).trim().toLowerCase();
         continue;
       }
       if (inCodeBlock) { codeContent.push(rawLine); continue; }
@@ -2719,6 +2759,141 @@
   setupIdleTumble();
   playWelcomeEyes();
   window.addEventListener('resize', () => positionBubble());
+
+  // ===== Event delegation cho nút HTML Preview =====
+  document.getElementById('bot-messages-container')?.addEventListener('click', (e) => {
+    const runBtn = e.target.closest('.bot-html-run-btn');
+    const stopBtn = e.target.closest('.bot-html-stop-btn');
+    const toggleSrc = e.target.closest('.bot-html-toggle-src');
+    const fullBtn = e.target.closest('.bot-html-full-btn');
+
+    if (runBtn) {
+      e.preventDefault();
+      const blockId = runBtn.dataset.block;
+      const block = document.getElementById(blockId);
+      if (!block) return;
+      const sourceEl = block.querySelector('.bot-html-source');
+      const previewEl = block.querySelector('.bot-html-preview-container');
+      const iframe = block.querySelector('.bot-html-preview-iframe');
+      const run = block.querySelector('.bot-html-run-btn');
+      const stop = block.querySelector('.bot-html-stop-btn');
+      const full = block.querySelector('.bot-html-full-btn');
+      const toggleBtn = block.querySelector('.bot-html-toggle-src');
+
+      if (!sourceEl || !previewEl || !iframe) return;
+
+      const code = sourceEl.querySelector('code')?.textContent || '';
+      if (!code.trim()) return;
+
+      // Ẩn source, hiện preview
+      sourceEl.style.display = 'none';
+      previewEl.style.display = 'block';
+      run.style.display = 'none';
+      stop.style.display = 'inline-block';
+      full.style.display = 'inline-block';
+      toggleBtn.style.display = 'none';
+
+      // Tạo blob URL cho iframe
+      const blob = new Blob([code], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      iframe.src = url;
+      iframe._blobUrl = url;
+
+      // Tự điều chỉnh chiều cao iframe
+      iframe.onload = () => {
+        try {
+          const doc = iframe.contentDocument || iframe.contentWindow.document;
+          const h = doc.documentElement.scrollHeight || doc.body.scrollHeight;
+          iframe.style.height = Math.min(Math.max(h, 200), 600) + 'px';
+        } catch (_) {
+          iframe.style.height = '400px';
+        }
+      };
+    }
+
+    if (stopBtn) {
+      e.preventDefault();
+      const blockId = stopBtn.dataset.block;
+      const block = document.getElementById(blockId);
+      if (!block) return;
+      const sourceEl = block.querySelector('.bot-html-source');
+      const previewEl = block.querySelector('.bot-html-preview-container');
+      const iframe = block.querySelector('.bot-html-preview-iframe');
+      const run = block.querySelector('.bot-html-run-btn');
+      const stop = block.querySelector('.bot-html-stop-btn');
+      const full = block.querySelector('.bot-html-full-btn');
+      const toggleBtn = block.querySelector('.bot-html-toggle-src');
+
+      // Dọn dẹp blob URL
+      if (iframe._blobUrl) {
+        URL.revokeObjectURL(iframe._blobUrl);
+        iframe._blobUrl = null;
+      }
+      iframe.src = 'about:blank';
+
+      // Thoát fullchat nếu đang full
+      block.classList.remove('bot-html-fullchat');
+      full.textContent = '⛶ Full';
+      full.style.background = '#7c3aed';
+      iframe.style.height = '';
+      messages.style.overflowY = '';
+
+      previewEl.style.display = 'none';
+      sourceEl.style.display = 'none';
+      run.style.display = 'inline-block';
+      stop.style.display = 'none';
+      full.style.display = 'none';
+      toggleBtn.style.display = 'inline-block';
+    }
+
+    if (toggleSrc) {
+      e.preventDefault();
+      const blockId = toggleSrc.dataset.block;
+      const block = document.getElementById(blockId);
+      if (!block) return;
+      const sourceEl = block.querySelector('.bot-html-source');
+      if (sourceEl) {
+        sourceEl.style.display = sourceEl.style.display === 'none' ? 'block' : 'none';
+      }
+    }
+
+    if (fullBtn) {
+      e.preventDefault();
+      const blockId = fullBtn.dataset.block;
+      const block = document.getElementById(blockId);
+      if (!block) return;
+      const chatWindow = document.getElementById('bot-chat-window');
+      if (!chatWindow) return;
+
+      const isFull = block.classList.contains('bot-html-fullchat');
+      const previewEl = block.querySelector('.bot-html-preview-container');
+      const iframe = block.querySelector('.bot-html-preview-iframe');
+
+      if (isFull) {
+        // Thoát full
+        block.classList.remove('bot-html-fullchat');
+        fullBtn.textContent = '⛶ Full';
+        fullBtn.style.background = '#7c3aed';
+        messages.style.overflowY = '';
+        if (iframe) {
+          iframe.style.height = '';
+          if (iframe.src && iframe.src !== 'about:blank') {
+            iframe.src = iframe.src;
+          }
+        }
+      } else {
+        // Vào full
+        block.classList.add('bot-html-fullchat');
+        fullBtn.textContent = '⛶ Thu nhỏ';
+        fullBtn.style.background = '#f59e0b';
+        messages.style.overflowY = 'hidden';
+        if (iframe) {
+          iframe.style.height = '100%';
+        }
+        block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  });
 
   // Welcome eyes khi load trang: liếc trái → phải → xuống → blink → về giữa
   function playWelcomeEyes() {
